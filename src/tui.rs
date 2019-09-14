@@ -5,11 +5,17 @@ use std::io::{self, Write};
 use termion::cursor::DetectCursorPos;
 use termion::{clear, color, cursor};
 
-fn print_cleared(s: &str) {
+pub fn println_cleared(s: &str) {
 	print!("{}{}\r\n", clear::CurrentLine, s);
 }
 
-fn print_tree(paths: &[path::Path], pos: u16) {
+pub fn clear_lines(n: usize) {
+	for _ in 0..n {
+		print!("{}\r\n", clear::CurrentLine);
+	}
+}
+
+fn print_tree(paths: &[path::Path], pos: u16, indices: &[usize]) {
 	let highlight = format!(
 		"{}{}>",
 		color::Bg(color::Rgb(50, 50, 50)),
@@ -17,7 +23,8 @@ fn print_tree(paths: &[path::Path], pos: u16) {
 	);
 	let selected = format!("{}>", color::Fg(color::LightRed));
 
-	for (i, pth) in paths.iter().enumerate() {
+	for (i, idx) in indices.iter().enumerate() {
+		let pth = &paths[*idx];
 		print!(
 			"{}{}{}{} {:?}{}\r\n",
 			clear::CurrentLine,
@@ -31,7 +38,7 @@ fn print_tree(paths: &[path::Path], pos: u16) {
 }
 
 pub fn print_info_line(n_selected: usize, n_shown: usize, n_total: usize) {
-	print_cleared(&format!(
+	println_cleared(&format!(
 		"{}(selected: {}, shown: {}, total: {})",
 		color::Fg(color::LightGreen),
 		n_selected,
@@ -48,16 +55,18 @@ pub struct Tui {
 	pub line_pos: u16,
 	pub stdout: RawStdout,
 	pub prompt: String,
+	max_lines: usize,
 }
 
 impl Tui {
-	pub fn new(mut stdout: RawStdout, prompt: String) -> Self {
+	pub fn new(mut stdout: RawStdout, prompt: String, max_lines: usize) -> Self {
 		Tui {
 			start_pos: stdout.cursor_pos().unwrap(),
 			curs_pos: 0,
 			line_pos: 0,
 			stdout: stdout,
 			prompt,
+			max_lines,
 		}
 	}
 
@@ -66,11 +75,12 @@ impl Tui {
 	}
 
 	pub fn print_input_line(&self, string: &str) {
-		print_cleared(&format!("{}{}", self.prompt, string));
+		println_cleared(&format!("{}{}", self.prompt, string));
 	}
 
-	pub fn print_body(&self, paths: &[path::Path]) {
-		print_tree(paths, self.line_pos);
+	pub fn print_body(&self, paths: &[path::Path], indices: &[usize]) {
+		print_tree(paths, self.line_pos, indices);
+		clear_lines(self.max_lines - indices.len());
 	}
 
 	pub fn return_cursor(&self) {

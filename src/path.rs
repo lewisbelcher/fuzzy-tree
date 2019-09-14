@@ -47,9 +47,51 @@ impl Path {
 		}
 	}
 
-	fn print(&self) -> String {
-		format!("{}", "    │".repeat(self.components.len() - 2))
+	pub fn print_joined(&self) {
+		// self.components.join(&path::MAIN_SEPARATOR.to_string())
+		print!("{} ", self.components.join(&path::MAIN_SEPARATOR.to_string()));
 	}
+}
+
+/// Create multiple paths from a `find`-like command output.
+pub fn create_paths(string: Vec<u8>) -> Vec<Path> {
+	let mut paths: Vec<Path> = String::from_utf8(string)
+		.unwrap()
+		.split('\n')
+		.filter(|x| !x.is_empty())
+		.map(|x| Path::new(x.to_string()))
+		.collect();
+
+	paths.sort();
+	paths
+}
+
+fn _match(pth: &Path, pattern: &str) -> bool {
+	let split: Vec<&str> = pattern.split(" ").filter(|x| !x.is_empty()).collect();
+	let mut matched;
+
+	for s in split {
+		matched = false;
+		for c in &pth.components {
+			matched |= c.contains(s);
+		}
+		if !matched {
+			return false;
+		}
+	}
+	true
+}
+
+pub fn filter<'t>(paths: &'t [Path], pattern: &str) -> Vec<usize> {
+	let mut i = 0;
+	paths
+		.iter()
+		.filter_map(move |x| {
+			let r = if _match(x, pattern) { Some(i) } else { None };
+			i += 1;
+			return r;
+		})
+		.collect()
 }
 
 #[cfg(test)]
@@ -72,5 +114,21 @@ mod test {
 		path1 = Path::new("here/is/a/fath.c".to_string());
 		path2 = Path::new("here/is/a/path.c".to_string());
 		assert!(path1 < path2);
+	}
+
+	#[test]
+	fn filter_gives_correct_elements() {
+		let paths = vec![
+			Path::new("here/is/x/path.c".to_string()),
+			Path::new("here/is/y/path.c".to_string()),
+			Path::new("here/is/z/path.c".to_string()),
+		];
+
+		assert_eq!(filter(&paths[..], "x"), vec![0]);
+		assert_eq!(filter(&paths[..], "y"), vec![1]);
+		assert_eq!(filter(&paths[..], "z"), vec![2]);
+		assert_eq!(filter(&paths[..], "x y"), vec![]);
+		assert_eq!(filter(&paths[..], "x h"), vec![0]);
+		assert_eq!(filter(&paths[..], "here"), vec![0, 1, 2]);
 	}
 }
