@@ -28,11 +28,12 @@ fn main() {
 	let mut chars = Vec::new();
 	let mut indices: Vec<usize> = (0..paths.len()).collect();
 	let mut n_selected: usize = 0;
+	let mut offset = 0;
 
 	ui.goto_start();
 	ui.print_input_line("");
 	tui::print_info_line(n_selected, indices.len(), n_paths);
-	ui.print_body(&paths[..], &indices[..]);
+	ui.print_body(&paths[..], &indices[offset..]);
 	ui.return_cursor();
 	ui.flush();
 
@@ -43,7 +44,7 @@ fn main() {
 			Key::Esc => break,
 			Key::Char(c) => {
 				if c == '\t' {
-					let idx = indices[ui.line_pos as usize];
+					let idx = indices[ui.line_pos as usize + offset];
 					if paths[idx].selected {
 						paths[idx].selected = false;
 						n_selected -= 1;
@@ -81,13 +82,25 @@ fn main() {
 				}
 			}
 			Key::Up => {
-				if ui.line_pos > 0 {
+				// if ui.line_pos > 0 {
+				// 	ui.line_pos -= 1;
+				// }
+				let x = ui.line_pos as usize;
+				if x + offset == 0 {
+					// Do nout
+				} else if ui.line_pos == 0 && offset > 0 {
+					offset -= 1;
+				} else {
 					ui.line_pos -= 1;
 				}
 			}
 			Key::Down => {
-				let min = cmp::min(indices.len(), DISPLAY_LINES - 2);
-				if min > 0 && ui.line_pos < (min as u16 - 1) {
+				let x = ui.line_pos as usize;
+				if x + offset == indices.len() - 1 {
+					// Do nout
+				} else if x == DISPLAY_LINES - 3 {
+					offset += 1;
+				} else {
 					ui.line_pos += 1;
 				}
 			}
@@ -117,9 +130,10 @@ fn main() {
 		ui.goto_start();
 		ui.print_input_line(&chars_to_str(&chars));
 		tui::print_info_line(n_selected, indices.len(), n_paths);
-		ui.print_body(&paths[..], &indices[..]);
+		ui.print_body(&paths[..], &indices[offset..]);
 		ui.return_cursor();
 		ui.flush();
 	}
+	// TODO: Don't start a new command line at exit..
 	ui.flush();
 }
