@@ -7,17 +7,11 @@ pub struct Path {
 	pub selected: bool,
 }
 
+// TODO: Need to group directories with their sub-paths!
 impl Ord for Path {
 	fn cmp(&self, other: &Self) -> Ordering {
 		let mut result;
 
-		// First compare lengths
-		result = self.components.len().cmp(&other.components.len());
-		if result != Ordering::Equal {
-			return result;
-		}
-
-		// Then compare contents
 		for (x, y) in self.components.iter().zip(other.components.iter()) {
 			result = x.cmp(y);
 			if result != Ordering::Equal {
@@ -25,8 +19,8 @@ impl Ord for Path {
 			}
 		}
 
-		// Finally, they must be equal!
-		Ordering::Equal
+		// If all zipped components were equal, compare length
+		self.components.len().cmp(&other.components.len())
 	}
 }
 
@@ -49,7 +43,10 @@ impl Path {
 
 	pub fn print_joined(&self) {
 		// self.components.join(&path::MAIN_SEPARATOR.to_string())
-		print!("{} ", self.components.join(&path::MAIN_SEPARATOR.to_string()));
+		print!(
+			"{} ",
+			self.components.join(&path::MAIN_SEPARATOR.to_string())
+		);
 	}
 }
 
@@ -114,6 +111,22 @@ mod test {
 		path1 = Path::new("here/is/a/fath.c".to_string());
 		path2 = Path::new("here/is/a/path.c".to_string());
 		assert!(path1 < path2);
+	}
+
+	#[test]
+	fn sorting_is_correct_2() {
+		let mut paths = vec![
+			Path::new("src".to_string()),
+			Path::new("tmp".to_string()),
+			Path::new("src/main.rs".to_string()),
+		];
+		paths.sort();
+		let expected = vec![
+			Path::new("src".to_string()),
+			Path::new("src/main.rs".to_string()),
+			Path::new("tmp".to_string()),
+		];
+		assert_eq!(paths, expected);
 	}
 
 	#[test]

@@ -3,19 +3,15 @@ extern crate termion;
 use crate::path;
 use std::io::{self, Write};
 use termion::cursor::DetectCursorPos;
-use termion::{clear, color, cursor};
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::{clear, color, cursor, scroll};
 
 pub fn println_cleared(s: &str) {
 	print!("{}{}\r\n", clear::CurrentLine, s);
 }
 
-pub fn clear_lines(n: usize) {
-	for _ in 0..n {
-		print!("{}\r\n", clear::CurrentLine);
-	}
-}
-
-fn print_tree(paths: &[path::Path], pos: u16, indices: &[usize]) {
+fn print_tree(paths: &[path::Path], pos: u16, indices: &[usize], display_lines: usize) {
 	let highlight = format!(
 		"{}{}>",
 		color::Bg(color::Rgb(50, 50, 50)),
@@ -24,6 +20,10 @@ fn print_tree(paths: &[path::Path], pos: u16, indices: &[usize]) {
 	let selected = format!("{}>", color::Fg(color::LightRed));
 
 	for (i, idx) in indices.iter().enumerate() {
+		if i == display_lines {
+			break;
+		}
+
 		let pth = &paths[*idx];
 		print!(
 			"{}{}{}{} {:?}{}\r\n",
@@ -47,26 +47,41 @@ pub fn print_info_line(n_selected: usize, n_shown: usize, n_total: usize) {
 	));
 }
 
+pub fn iter_keys() -> termion::input::Keys<io::Stdin> {
+	io::stdin().keys()
+}
+
 type RawStdout = termion::raw::RawTerminal<io::Stdout>;
 
 pub struct Tui {
-	pub start_pos: (u16, u16),
+	stdout: RawStdout,
+	start_pos: (u16, u16),
+	prompt: String,
+	display_lines: usize,
 	pub curs_pos: u16,
 	pub line_pos: u16,
-	pub stdout: RawStdout,
-	pub prompt: String,
-	max_lines: usize,
 }
 
 impl Tui {
-	pub fn new(mut stdout: RawStdout, prompt: String, max_lines: usize) -> Self {
+	pub fn new(prompt: String, display_lines: usize) -> Self {
+		let mut stdout = io::stdout().into_raw_mode().unwrap();
+		let mut start_pos = stdout.cursor_pos().unwrap();
+
+		// Scroll up to allow min screen space at bottom of screen
+		let size = termion::terminal_size().unwrap();
+		let min_line = size.1 - display_lines as u16;
+		if min_line < start_pos.1 {
+			print!("{}", scroll::Up(start_pos.1 - min_line));
+			start_pos.1 = min_line;
+		}
+
 		Tui {
-			start_pos: stdout.cursor_pos().unwrap(),
+			stdout: stdout,
+			start_pos: start_pos,
 			curs_pos: 0,
 			line_pos: 0,
-			stdout: stdout,
 			prompt,
-			max_lines,
+			display_lines,
 		}
 	}
 
@@ -79,8 +94,8 @@ impl Tui {
 	}
 
 	pub fn print_body(&self, paths: &[path::Path], indices: &[usize]) {
-		print_tree(paths, self.line_pos, indices);
-		clear_lines(self.max_lines - indices.len());
+		print!("{}", clear::AfterCursor);
+		print_tree(paths, self.line_pos, indices, self.display_lines - 2);
 	}
 
 	pub fn return_cursor(&self) {

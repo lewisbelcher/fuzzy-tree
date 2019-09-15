@@ -1,17 +1,14 @@
 #![feature(vec_remove_item)]
 
 use std::cmp;
-use std::io;
 use std::process::Command;
 use termion::clear;
 use termion::color;
 use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
 pub mod path;
 pub mod tui;
 
-const MAX_LINES: usize = 10;
+const DISPLAY_LINES: usize = 10;
 
 fn chars_to_str(chars: &Vec<char>) -> String {
 	chars.iter().collect::<String>()
@@ -26,21 +23,18 @@ fn main() {
 	let mut paths = path::create_paths(stdout);
 	let n_paths = paths.len();
 
-	let stdin = io::stdin();
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
-	let stdout = io::stdout().into_raw_mode().unwrap();
-	let mut ui = tui::Tui::new(stdout, prompt, MAX_LINES);
+	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES);
 	let mut chars = Vec::new();
 	let mut indices: Vec<usize> = (0..paths.len()).collect();
 	let mut n_selected: usize = 0;
 
-	let _size = termion::terminal_size();
-
+	ui.goto_start();
 	ui.print_input_line("");
 	ui.return_cursor();
 	ui.flush();
 
-	for c in stdin.keys() {
+	for c in tui::iter_keys() {
 		let mut chars_changed = false;
 
 		match c.unwrap() {
@@ -90,7 +84,7 @@ fn main() {
 				}
 			}
 			Key::Down => {
-				let min = cmp::min(indices.len(), MAX_LINES);
+				let min = cmp::min(indices.len(), DISPLAY_LINES - 2);
 				if min > 0 && ui.line_pos < (min as u16 - 1) {
 					ui.line_pos += 1;
 				}
