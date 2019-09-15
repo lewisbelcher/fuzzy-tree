@@ -7,7 +7,6 @@ pub struct Path {
 	pub selected: bool,
 }
 
-// TODO: Need to group directories with their sub-paths!
 impl Ord for Path {
 	fn cmp(&self, other: &Self) -> Ordering {
 		let mut result;

@@ -70,7 +70,7 @@ fn main() {
 					chars_changed = true;
 				}
 			}
-			Key::Ctrl(_c) => {} // TODO: implement ctrl+{w,u,y,left,right}
+			Key::Ctrl(_c) => {}
 			Key::Left => {
 				if ui.curs_pos > 0 {
 					ui.curs_pos -= 1;
@@ -134,6 +134,5 @@ fn main() {
 		ui.return_cursor();
 		ui.flush();
 	}
-	// TODO: Don't start a new command line at exit..
 	ui.flush();
 }
