@@ -1,5 +1,3 @@
-extern crate termion;
-
 use crate::path;
 use std::io::{self, Write};
 use termion::cursor::DetectCursorPos;
