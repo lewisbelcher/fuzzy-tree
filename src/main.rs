@@ -31,6 +31,8 @@ fn main() {
 
 	ui.goto_start();
 	ui.print_input_line("");
+	tui::print_info_line(n_selected, indices.len(), n_paths);
+	ui.print_body(&paths[..], &indices[..]);
 	ui.return_cursor();
 	ui.flush();
 
