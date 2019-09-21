@@ -1,5 +1,8 @@
+use crate::tree::{self, Breeder};
 use std::cmp::Ordering;
 use std::path;
+
+pub type PathBranch<'a> = tree::XBranch<&'a Path>;
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct Path {
@@ -51,6 +54,21 @@ impl Path {
 	pub fn len(&self) -> usize {
 		self.components.len()
 	}
+
+	pub fn is_parent_of(&self, other: &Path) -> bool {
+		is_child_of(other, self)
+	}
+
+	pub fn is_child_of(&self, other: &Path) -> bool {
+		is_child_of(self, other)
+	}
+}
+
+fn is_child_of(p1: &Path, p2: &Path) -> bool {
+	if p2.len() >= p1.len() {
+		return false;
+	}
+	p1.components[..p2.len()] == p2.components[..]
 }
 
 /// Create multiple paths from a `find`-like command output.
@@ -64,10 +82,11 @@ pub fn create_paths(string: Vec<u8>) -> Vec<Path> {
 
 	paths.sort();
 
-	// paths.insert(0, Path::new("".to_string()));
-	// for p in &mut paths {
-	// 	p.components.insert(0, ".".to_string());
-	// }
+	// Add CWD as "."
+	paths.insert(0, Path::new(".".to_string()));
+	for p in &mut paths {
+		p.components.insert(0, ".".to_string());
+	}
 
 	paths
 }
@@ -100,13 +119,6 @@ pub fn filter<'t>(paths: &'t [Path], pattern: &str) -> Vec<usize> {
 		.collect()
 }
 
-fn is_child_of(p1: &Path, p2: &Path) -> bool {
-	if p2.len() >= p1.len() {
-		return false;
-	}
-	p1.components[..p2.len()] == p2.components[..]
-}
-
 fn is_only_child(p: &Path, paths: &[Path]) -> bool {
 	let len = p.components.len();
 	let reference = &p.components[..len - 1];
@@ -119,10 +131,6 @@ fn is_only_child(p: &Path, paths: &[Path]) -> bool {
 	true
 }
 
-fn in_same_dir(p1: &Path, p2: &Path) -> bool {
-	p1.len() == p2.len() && p1.components[..p1.len() - 1] == p2.components[..p1.len() - 1]
-}
-
 fn create_dir(mut i: usize, prefix: &str, paths: &[Path], lines: &mut Vec<String>) -> usize {
 	if i == paths.len() {
 		return i;
@@ -130,7 +138,7 @@ fn create_dir(mut i: usize, prefix: &str, paths: &[Path], lines: &mut Vec<String
 
 	let pth1 = &paths[i];
 
-	let extra = if i < paths.len() - 1 && in_same_dir(pth1, &paths[i + 1]) {
+	let extra = if i < paths.len() - 1 && !is_only_child(pth1, &paths[i + 1..]) {
 		"├── "
 	} else {
 		"└── "
@@ -157,10 +165,30 @@ fn create_dir(mut i: usize, prefix: &str, paths: &[Path], lines: &mut Vec<String
 	}
 }
 
-/// Create a vector of strings representing lines in the tree printout.
-///
-/// TODO: I think this needs to be a recursive function!
-// pub fn create_tree() {}
+pub fn create_tree<'a, T>(current: PathBranch<'a>, mut paths: T) -> PathBranch<'a>
+where
+	T: Iterator<Item = &'a Path>,
+{
+	let mut prev = None;
+
+	loop {
+		let p = if let Some(p) = paths.next() {
+			p
+		} else {
+			break current;
+		};
+
+		let node = tree::Branch::new(p);
+
+		if prev.is_some() && p.is_child_of(prev.unwrap()) {
+			create_tree(node, paths);
+		} else {
+			current.add_child(&node);
+		}
+
+		prev = Some(p)
+	}
+}
 
 #[cfg(test)]
 mod test {
@@ -251,18 +279,22 @@ mod test {
 	}
 
 	#[test]
-	fn create_dir_correct() {
-		let mut lines = Vec::new();
+	fn create_tree_correct() {
 		let paths = vec![
-			Path::new("A".to_string()),
-			Path::new("B".to_string()),
-			Path::new("src".to_string()),
-			Path::new("src/bayes".to_string()),
-			Path::new("src/bayes/blend.c".to_string()),
-			Path::new("src/bayes/rand.c".to_string()),
-			Path::new("x.txt".to_string()),
+			Path::new(".".to_string()),
+			Path::new("./A".to_string()),
+			Path::new("./B".to_string()),
+			Path::new("./src".to_string()),
+			Path::new("./src/bayes".to_string()),
+			Path::new("./src/bayes/blend.c".to_string()),
+			Path::new("./src/bayes/rand.c".to_string()),
+			Path::new("./src/cakes".to_string()),
+			Path::new("./src/cakes/a.c".to_string()),
+			Path::new("./src/cakes/b.c".to_string()),
+			Path::new("./x.txt".to_string()),
 		];
-		let response = create_dir(0, "", &paths[..], &mut lines);
-		println!("{}", lines.join("\n"));
+		let current = tree::Branch::new(&paths[0]);
+		let lines = create_tree(current, paths[1..].iter());
+		println!("{:?}", lines);
 	}
 }
