@@ -6,6 +6,7 @@ use termion::clear;
 use termion::color;
 use termion::event::Key;
 pub mod path;
+pub mod tree;
 pub mod tui;
 
 const DISPLAY_LINES: usize = 10;
@@ -59,7 +60,7 @@ fn main() {
 						.iter()
 						.map(|p| {
 							if p.selected {
-								p.print_joined()
+								println!("{}", p.joined());
 							}
 						})
 						.collect::<()>();
