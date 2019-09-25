@@ -7,7 +7,7 @@ pub type XBranch<T> = Rc<RefCell<Branch<T>>>;
 pub struct Branch<T> {
 	parent: Option<XBranch<T>>,
 	pub elem: T,
-	children: Option<Vec<XBranch<T>>>,
+	pub children: Option<Vec<XBranch<T>>>,
 }
 
 impl<T> fmt::Debug for Branch<T>
@@ -15,18 +15,12 @@ where
 	T: std::fmt::Debug,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{:?}; Kids:", self.elem);
-		if let Some(children) = &self.children {
-			for ch in children {
-				write!(f, "\n  {:?}", ch);
-			}
-		}
-		write!(f, "")
+		write!(f, "{:?}; Kids {:#?}:", self.elem, self.children)
 	}
 }
 
 impl<T> Branch<T> {
-	pub fn new(elem: T) -> Rc<RefCell<Self>> {
+	pub fn new(elem: T) -> XBranch<T> {
 		Rc::new(RefCell::new(Branch {
 			parent: None,
 			elem,
@@ -39,6 +33,15 @@ impl<T> Branch<T> {
 			Some(p) => p.borrow().depth(),
 			None => 0,
 		}
+	}
+
+	pub fn child(&self, i: usize) -> Option<&XBranch<T>> {
+		if let Some(children) = &self.children {
+			if i < children.len() {
+				return Some(&children[i]);
+			}
+		}
+		None
 	}
 }
 
