@@ -1,6 +1,7 @@
 use crate::tree::{self, Breeder};
 use std::cmp::Ordering;
 use std::path;
+use std::rc::Rc;
 
 pub type PathBranch<'a> = tree::XBranch<&'a Path>;
 
@@ -41,6 +42,10 @@ impl Path {
 				.collect(),
 			selected: false,
 		}
+	}
+
+	pub fn from(string: &str) -> Path {
+		Path::new(string.to_string())
 	}
 
 	pub fn joined(&self) -> String {
@@ -119,75 +124,104 @@ pub fn filter<'t>(paths: &'t [Path], pattern: &str) -> Vec<usize> {
 		.collect()
 }
 
-fn is_only_child(p: &Path, paths: &[Path]) -> bool {
-	let len = p.components.len();
-	let reference = &p.components[..len - 1];
-
-	for pth in paths.iter() {
-		if len == pth.components.len() && reference == &pth.components[..len - 1] {
-			return false;
-		}
-	}
-	true
+fn _ischild(a: &PathBranch, b: &PathBranch) -> bool {
+	a.borrow().elem.is_child_of(b.borrow().elem)
 }
 
-fn create_dir(mut i: usize, prefix: &str, paths: &[Path], lines: &mut Vec<String>) -> usize {
-	if i == paths.len() {
-		return i;
+fn peek<'a>(stack: &'a [PathBranch<'a>], i: usize) -> Option<&'a PathBranch<'a>> {
+	if i < stack.len() {
+		return Some(&stack[i]);
 	}
+	None
+}
 
-	let pth1 = &paths[i];
-
-	let extra = if i < paths.len() - 1 && !is_only_child(pth1, &paths[i + 1..]) {
-		"├── "
-	} else {
-		"└── "
+macro_rules! debug_relation {
+	($obj1:expr; child $obj2:expr) => {
+		println!(
+			"{:?} is child of {:?}",
+			$obj1.borrow().elem,
+			$obj2.borrow().elem
+		);
 	};
-	lines.push(prefix.to_owned() + extra + pth1.basename());
+	($obj1:expr; unrelated $obj2:expr, $obj3:expr) => {
+		println!(
+			"{:?} is unrelated to {:?} and {:?}",
+			$obj1.borrow().elem,
+			$obj2.borrow().elem,
+			$obj3.borrow().elem
+		);
+	};
+}
 
-	i += 1;
-	if i == paths.len() {
-		return i;
-	}
-
-	let pth2 = &paths[i];
-
-	if is_child_of(pth2, pth1) {
-		let extra = if i < paths.len() - 1 && is_only_child(pth2, &paths[i + 1..]) {
-			"    "
+/// Inner recursive function for creating a directory tree.
+///
+/// Max recursion depth will be equal to the max directory depth. It is
+/// unlikely that we'll hit a stack overflow.
+///
+/// There are three potential routes in each recursion frame:
+///  1. If `next` is child of `prev`: add `next` to `prev` and recurse with
+///     `prev` as `base`, `next` as `prev`
+///  2. If `next` is a child of `base`: consume `next` and add it to `base`
+///     then loop
+///  3. In all other cases: break with `i` and move up one recursion frame
+fn recurse_tree<'a>(
+	mut i: usize,
+	base: &PathBranch<'a>,
+	mut prev: Option<&PathBranch<'a>>,
+	stack: &'a [PathBranch<'a>],
+) -> usize {
+	// TODO: Use log package
+	loop {
+		println!("~~~ {} ~~~", i);
+		i += 1;
+		if let Some(next) = peek(stack, i) {
+			if let Some(prev) = prev {
+				if _ischild(&next, &prev) {
+					debug_relation!(next; child base);
+					prev.add_child(&next);
+					i = recurse_tree(i, &prev, Some(&next), stack) - 1;
+				} else if _ischild(&next, &base) {
+					debug_relation!(next; child base);
+					base.add_child(&next);
+				} else {
+					debug_relation!(next; unrelated base, prev);
+					break i;
+				}
+			} else if _ischild(&next, &base) {
+				debug_relation!(next; child base);
+				base.add_child(&next);
+			} else {
+				// Given that we always include all directories, there is never a broken
+				// link between `base` and `next` if `prev` is `None`. This means that
+				// this code is unreachable. It's left here in case the directory
+				// discovery changes in the future.
+				break i;
+			}
+			prev = Some(next);
 		} else {
-			"│   "
-		};
-		return create_dir(i, &(prefix.to_owned() + extra), paths, lines);
-	} else {
-		let diff = prefix.len() - (4 * (pth1.len() - pth2.len()));
-		return create_dir(i, &prefix[..diff], paths, lines);
+			break i;
+		}
 	}
 }
 
-pub fn create_tree<'a, T>(current: PathBranch<'a>, mut paths: T) -> PathBranch<'a>
-where
-	T: Iterator<Item = &'a Path>,
-{
-	let mut prev = None;
+/// Create relationships between all nodes in the directory structure for
+/// `paths`.
+pub fn create_tree<'a>(paths: &'a Vec<PathBranch<'a>>) -> PathBranch<'a> {
+	recurse_tree(0, &paths[0], None, &paths[..]);
+	Rc::clone(&paths[0])
+}
 
-	loop {
-		let p = if let Some(p) = paths.next() {
-			p
-		} else {
-			break current;
-		};
-
-		let node = tree::Branch::new(p);
-
-		if prev.is_some() && p.is_child_of(prev.unwrap()) {
-			create_tree(node, paths);
-		} else {
-			current.add_child(&node);
+#[macro_export]
+macro_rules! paths {
+	( $( $x:literal ),* ) => {
+		{
+			let mut temp = Vec::new();
+			$(
+				temp.push(Path::from($x));
+			)*
+			temp
 		}
-
-		prev = Some(p)
-	}
+	};
 }
 
 #[cfg(test)]
@@ -199,42 +233,30 @@ mod test {
 		let mut path1;
 		let mut path2;
 
-		path1 = Path::new("here/is/a/path.c".to_string());
-		path2 = Path::new("here/is/a/path.c".to_string());
+		path1 = Path::from("here/is/a/path.c");
+		path2 = Path::from("here/is/a/path.c");
 		assert_eq!(path1, path2);
 
-		path1 = Path::new("here/is/a".to_string());
-		path2 = Path::new("here/is/a/path.c".to_string());
+		path1 = Path::from("here/is/a");
+		path2 = Path::from("here/is/a/path.c");
 		assert!(path1 < path2);
 
-		path1 = Path::new("here/is/a/fath.c".to_string());
-		path2 = Path::new("here/is/a/path.c".to_string());
+		path1 = Path::from("here/is/a/fath.c");
+		path2 = Path::from("here/is/a/path.c");
 		assert!(path1 < path2);
 	}
 
 	#[test]
 	fn sorting_is_correct_2() {
-		let mut paths = vec![
-			Path::new("src".to_string()),
-			Path::new("tmp".to_string()),
-			Path::new("src/main.rs".to_string()),
-		];
+		let mut paths = paths!["src", "tmp", "src/main.rs"];
 		paths.sort();
-		let expected = vec![
-			Path::new("src".to_string()),
-			Path::new("src/main.rs".to_string()),
-			Path::new("tmp".to_string()),
-		];
+		let expected = paths!["src", "src/main.rs", "tmp"];
 		assert_eq!(paths, expected);
 	}
 
 	#[test]
 	fn filter_gives_correct_elements() {
-		let paths = vec![
-			Path::new("here/is/x/path.c".to_string()),
-			Path::new("here/is/y/path.c".to_string()),
-			Path::new("here/is/z/path.c".to_string()),
-		];
+		let paths = paths!["here/is/x/path.c", "here/is/y/path.c", "here/is/z/path.c"];
 
 		assert_eq!(filter(&paths[..], "x"), vec![0]);
 		assert_eq!(filter(&paths[..], "y"), vec![1]);
@@ -246,55 +268,75 @@ mod test {
 
 	#[test]
 	fn is_child_of_correctness() {
-		let mut p1 = Path::new("A".to_string());
-		let mut p2 = Path::new("B".to_string());
+		let mut p1 = Path::from("A");
+		let mut p2 = Path::from("B");
 		assert!(!is_child_of(&p1, &p2));
 
-		p1 = Path::new("src/bayes".to_string());
-		p2 = Path::new("src/bayes/blend.c".to_string());
+		p1 = Path::from("src/bayes");
+		p2 = Path::from("src/bayes/blend.c");
 		assert!(!is_child_of(&p1, &p2));
 
-		p1 = Path::new("src/bayes".to_string());
-		p2 = Path::new("src/bayes/blend.c".to_string());
+		p1 = Path::from("src/bayes");
+		p2 = Path::from("src/bayes/blend.c");
 		assert!(is_child_of(&p2, &p1));
 	}
 
-	#[test]
-	fn is_only_child_test() {
-		let p = Path::new("src/bayes".to_string());
-		let mut paths = vec![
-			Path::new("src/bayes/blend.c".to_string()),
-			Path::new("src/bayes/rand.c".to_string()),
-			Path::new("x.txt".to_string()),
-		];
-		assert!(is_only_child(&p, &paths[..]));
+	/// Determine whether two trees are equal by recursing into all branches
+	fn trees_equal(a: &PathBranch, b: &PathBranch) -> bool {
+		if a.borrow().elem != b.borrow().elem {
+			return false;
+		}
 
-		paths = vec![
-			Path::new("src/bayes/blend.c".to_string()),
-			Path::new("src/bayes/rand.c".to_string()),
-			Path::new("src/cakes".to_string()),
-			Path::new("x.txt".to_string()),
-		];
-		assert!(!is_only_child(&p, &paths[..]));
+		if let Some(a_children) = &a.borrow().children {
+			if let Some(b_children) = &b.borrow().children {
+				if a_children.len() != b_children.len() {
+					return false;
+				}
+				for (aa, bb) in a_children.iter().zip(b_children.iter()) {
+					if !trees_equal(aa, bb) {
+						return false;
+					}
+				}
+			} else {
+				return false;
+			}
+		}
+
+		true
 	}
 
 	#[test]
 	fn create_tree_correct() {
-		let paths = vec![
-			Path::new(".".to_string()),
-			Path::new("./A".to_string()),
-			Path::new("./B".to_string()),
-			Path::new("./src".to_string()),
-			Path::new("./src/bayes".to_string()),
-			Path::new("./src/bayes/blend.c".to_string()),
-			Path::new("./src/bayes/rand.c".to_string()),
-			Path::new("./src/cakes".to_string()),
-			Path::new("./src/cakes/a.c".to_string()),
-			Path::new("./src/cakes/b.c".to_string()),
-			Path::new("./x.txt".to_string()),
+		let paths = paths![
+			".",
+			"./A",
+			"./B",
+			"./src",
+			"./src/bayes",
+			"./src/bayes/blend.c",
+			"./src/bayes/rand.c",
+			"./src/cakes",
+			"./src/cakes/a.c",
+			"./src/cakes/b.c",
+			"./x.txt"
 		];
-		let current = tree::Branch::new(&paths[0]);
-		let lines = create_tree(current, paths[1..].iter());
-		println!("{:?}", lines);
+		let branches: Vec<PathBranch> = paths.iter().map(tree::Branch::new).collect();
+		let root = create_tree(&branches);
+		println!("{:?}", root);  // TODO: Use log
+
+		let expected: Vec<PathBranch> = paths.iter().map(tree::Branch::new).collect();
+		let root2 = Rc::clone(&expected[0]);
+		root2.add_child(&expected[1]);
+		root2.add_child(&expected[2]);
+		root2.add_child(&expected[3]);
+		&expected[3].add_child(&expected[4]);
+		&expected[4].add_child(&expected[5]);
+		&expected[4].add_child(&expected[6]);
+		&expected[3].add_child(&expected[7]);
+		&expected[7].add_child(&expected[8]);
+		&expected[7].add_child(&expected[9]);
+		root2.add_child(&expected[10]);
+
+		assert!(trees_equal(&root, &root2));
 	}
 }
