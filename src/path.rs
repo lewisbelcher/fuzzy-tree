@@ -164,7 +164,7 @@ macro_rules! debug_relation {
 ///  2. If `next` is a child of `base`: consume `next` and add it to `base`
 ///     then loop
 ///  3. In all other cases: break with `i` and move up one recursion frame
-fn recurse_tree<'a>(
+fn _create_tree<'a>(
 	mut i: usize,
 	base: &PathBranch<'a>,
 	mut prev: Option<&PathBranch<'a>>,
@@ -179,7 +179,7 @@ fn recurse_tree<'a>(
 				if _ischild(&next, &prev) {
 					debug_relation!(next; child base);
 					prev.add_child(&next);
-					i = recurse_tree(i, &prev, Some(&next), stack) - 1;
+					i = _create_tree(i, &prev, Some(&next), stack) - 1;
 				} else if _ischild(&next, &base) {
 					debug_relation!(next; child base);
 					base.add_child(&next);
@@ -207,8 +207,41 @@ fn recurse_tree<'a>(
 /// Create relationships between all nodes in the directory structure for
 /// `paths`.
 pub fn create_tree<'a>(paths: &'a Vec<PathBranch<'a>>) -> PathBranch<'a> {
-	recurse_tree(0, &paths[0], None, &paths[..]);
+	_create_tree(0, &paths[0], None, &paths[..]);
 	Rc::clone(&paths[0])
+}
+
+
+
+/// Inner recursive function to create a string representation of a directory
+/// tree.
+fn _tree_string(root: &PathBranch, lines: &mut Vec<String>, prefix: &str) {
+	if let Some(children) = &root.borrow().children {
+		let children: Vec<&PathBranch> = children.iter().filter(|x| x.borrow().elem.selected).collect();
+		for (i, child) in children.iter().enumerate() {
+			let (pre, addon) = if i == children.len() - 1 {
+				("    ", "└── ")
+			} else {
+				("│   ", "├── ")
+			};
+
+			lines.push(prefix.to_owned() + addon + child.borrow().elem.basename());
+			if child.borrow().children.is_some() {
+				_tree_string(child, lines, &(prefix.to_owned() + pre));
+			}
+		}
+	} else {
+		lines.push(prefix.to_owned() + root.borrow().elem.basename());
+	}
+}
+
+/// Create a string representation of the tree from root directory `root`.
+/// We can preallocate the exact capacity by knowing the number of paths
+/// we are constructing for.
+pub fn tree_string(root: &PathBranch, len: usize) -> Vec<String> {
+	let mut lines = Vec::with_capacity(len);
+	_tree_string(root, &mut lines, "");
+	lines
 }
 
 #[macro_export]
@@ -305,9 +338,8 @@ mod test {
 		true
 	}
 
-	#[test]
-	fn create_tree_correct() {
-		let paths = paths![
+	fn create_test_paths() -> Vec<Path> {
+		paths![
 			".",
 			"./A",
 			"./B",
@@ -319,24 +351,74 @@ mod test {
 			"./src/cakes/a.c",
 			"./src/cakes/b.c",
 			"./x.txt"
-		];
-		let branches: Vec<PathBranch> = paths.iter().map(tree::Branch::new).collect();
-		let root = create_tree(&branches);
-		println!("{:?}", root);  // TODO: Use log
+		]
+	}
 
+	fn create_test_tree(paths: &Vec<Path>) -> PathBranch {
 		let expected: Vec<PathBranch> = paths.iter().map(tree::Branch::new).collect();
-		let root2 = Rc::clone(&expected[0]);
-		root2.add_child(&expected[1]);
-		root2.add_child(&expected[2]);
-		root2.add_child(&expected[3]);
+		let root = Rc::clone(&expected[0]);
+		root.add_child(&expected[1]);
+		root.add_child(&expected[2]);
+		root.add_child(&expected[3]);
 		&expected[3].add_child(&expected[4]);
 		&expected[4].add_child(&expected[5]);
 		&expected[4].add_child(&expected[6]);
 		&expected[3].add_child(&expected[7]);
 		&expected[7].add_child(&expected[8]);
 		&expected[7].add_child(&expected[9]);
-		root2.add_child(&expected[10]);
+		root.add_child(&expected[10]);
+		root
+	}
 
+	#[test]
+	fn create_tree_correct() {
+		let paths = create_test_paths();
+
+		let branches: Vec<PathBranch> = paths.iter().map(tree::Branch::new).collect();
+		let root = create_tree(&branches);
+		println!("{:?}", root); // TODO: Use log
+
+		let root2 = create_test_tree(&paths);
 		assert!(trees_equal(&root, &root2));
+	}
+
+	#[test]
+	fn tree_string_test_with_unselected() {
+		let mut paths = create_test_paths();
+		for p in paths.iter_mut() {
+			p.selected = true;
+		}
+		paths[4].selected = false;
+		let root = create_test_tree(&paths);
+		let lines = tree_string(&root, paths.len());
+		let expected = "├── A
+├── B
+├── src
+│   └── cakes
+│       ├── a.c
+│       └── b.c
+└── x.txt";
+		assert_eq!(lines.join("\n"), expected);
+	}
+
+	#[test]
+	fn tree_string_test() {
+		let mut paths = create_test_paths();
+		for p in paths.iter_mut() {
+			p.selected = true;
+		}
+		let root = create_test_tree(&paths);
+		let lines = tree_string(&root, paths.len());
+		let expected = "├── A
+├── B
+├── src
+│   ├── bayes
+│   │   ├── blend.c
+│   │   └── rand.c
+│   └── cakes
+│       ├── a.c
+│       └── b.c
+└── x.txt";
+		assert_eq!(lines.join("\n"), expected);
 	}
 }
