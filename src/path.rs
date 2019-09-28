@@ -3,14 +3,21 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::path;
 use std::rc::Rc;
+use termion::color;
 
 pub type RcPath = Rc<RefCell<Path>>;
+
+lazy_static! {
+	static ref SELECTED: String =
+		format!("{}>{}", color::Fg(color::LightRed), color::Fg(color::Reset));
+}
 
 #[derive(Eq, PartialEq)]
 pub struct Path {
 	parent: Option<RcPath>,
 	components: Vec<String>,
-	selected: bool,
+	pub selected: bool,
+	matched: bool,
 	children: Option<Vec<RcPath>>,
 }
 
@@ -51,6 +58,7 @@ impl Path {
 				.map(|x| x.to_string())
 				.collect(),
 			selected: false,
+			matched: true,
 			children: None,
 		}))
 	}
@@ -114,6 +122,20 @@ impl PathBehaviour for RcPath {
 	}
 }
 
+/// Get the nth *matched* path from a vec of paths
+pub fn get_n(paths: &Vec<RcPath>, i: usize) -> Option<&RcPath> {
+	let mut matches = 0;
+	for pth in paths {
+		if pth.borrow().matched {
+			if matches == i {
+				return Some(pth);
+			}
+			matches += 1;
+		}
+	}
+	None
+}
+
 fn _match(pth: &RcPath, pattern: &str) -> bool {
 	let split: Vec<&str> = pattern.split(" ").filter(|x| !x.is_empty()).collect();
 	let mut matched;
@@ -130,17 +152,18 @@ fn _match(pth: &RcPath, pattern: &str) -> bool {
 	true
 }
 
-/// Return indices of paths that are selected.
-pub fn filter<'t>(paths: &'t [RcPath], pattern: &str) -> Vec<usize> {
-	let mut i = 0;
-	paths
-		.iter()
-		.filter_map(move |x| {
-			let r = if _match(x, pattern) { Some(i) } else { None };
-			i += 1;
-			return r;
-		})
-		.collect()
+/// Update which paths are matched by `pattern`.
+pub fn update_matched<'t>(paths: &'t Vec<RcPath>, pattern: &str) -> usize {
+	let mut matched = 0;
+	for pth in paths {
+		if _match(pth, pattern) {
+			pth.borrow_mut().matched = true;
+			matched += 1;
+		} else {
+			pth.borrow_mut().matched = false;
+		}
+	}
+	matched
 }
 
 /// Create multiple paths from a `find`-like command output.
@@ -246,7 +269,7 @@ pub fn create_tree(paths: &Vec<RcPath>) -> RcPath {
 /// tree.
 fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
 	if let Some(children) = &root.borrow().children {
-		let children: Vec<&RcPath> = children.iter().filter(|x| x.borrow().selected).collect();
+		let children: Vec<&RcPath> = children.iter().filter(|x| x.borrow().matched).collect();
 		for (i, child) in children.iter().enumerate() {
 			let (pre, addon) = if i == children.len() - 1 {
 				("    ", "└── ")
@@ -254,13 +277,23 @@ fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
 				("│   ", "├── ")
 			};
 
-			lines.push(prefix.to_owned() + addon + child.basename());
+			let sel = if root.borrow().selected {
+				&SELECTED
+			} else {
+				" "
+			};
+			lines.push(sel.to_owned() + prefix + addon + child.basename());
 			if child.borrow().children.is_some() {
 				_tree_string(child, lines, &(prefix.to_owned() + pre));
 			}
 		}
 	} else {
-		lines.push(prefix.to_owned() + root.basename());
+		let sel = if root.borrow().selected {
+			&SELECTED
+		} else {
+			" "
+		};
+		lines.push(sel.to_owned() + prefix + root.basename());
 	}
 }
 
@@ -331,18 +364,6 @@ mod test {
 		let s = "here/is/a/path.c";
 		let path = Path::from(s);
 		assert_eq!(path.joined(), s);
-	}
-
-	#[test]
-	fn filter_gives_correct_elements() {
-		let paths = paths!["here/is/x/path.c", "here/is/y/path.c", "here/is/z/path.c"];
-
-		assert_eq!(filter(&paths[..], "x"), vec![0]);
-		assert_eq!(filter(&paths[..], "y"), vec![1]);
-		assert_eq!(filter(&paths[..], "z"), vec![2]);
-		assert_eq!(filter(&paths[..], "x y"), vec![]);
-		assert_eq!(filter(&paths[..], "x h"), vec![0]);
-		assert_eq!(filter(&paths[..], "here"), vec![0, 1, 2]);
 	}
 
 	#[test]
@@ -426,33 +447,30 @@ mod test {
 	#[test]
 	fn tree_string_test() {
 		let mut paths = create_test_paths();
-		for p in paths.iter_mut() {
-			p.borrow_mut().selected = true;
-		}
 		let root = create_test_tree(&paths);
 		let lines = tree_string(&root, paths.len());
-		let expected = "├── A
-├── B
-├── src
-│   ├── bayes
-│   │   ├── blend.c
-│   │   └── rand.c
-│   └── cakes
-│       ├── a.c
-│       └── b.c
-└── x.txt";
+		let expected = " ├── A
+ ├── B
+ ├── src
+ │   ├── bayes
+ │   │   ├── blend.c
+ │   │   └── rand.c
+ │   └── cakes
+ │       ├── a.c
+ │       └── b.c
+ └── x.txt";
 		assert_eq!(lines.join("\n"), expected);
 
 		// Deselect `./src/bayes` and print again
-		paths[4].borrow_mut().selected = false;
+		paths[4].borrow_mut().matched = false;
 		let lines = tree_string(&root, paths.len());
-		let expected = "├── A
-├── B
-├── src
-│   └── cakes
-│       ├── a.c
-│       └── b.c
-└── x.txt";
+		let expected = " ├── A
+ ├── B
+ ├── src
+ │   └── cakes
+ │       ├── a.c
+ │       └── b.c
+ └── x.txt";
 		assert_eq!(lines.join("\n"), expected);
 	}
 }

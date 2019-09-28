@@ -1,13 +1,15 @@
 #![feature(vec_remove_item)]
 
+#[macro_use]
+extern crate lazy_static;
+pub mod path;
+pub mod tui;
+use path::PathBehaviour;
 use std::cmp;
 use std::process::Command;
 use termion::clear;
 use termion::color;
 use termion::event::Key;
-pub mod path;
-pub mod tree;
-pub mod tui;
 
 const DISPLAY_LINES: usize = 10;
 
@@ -21,36 +23,39 @@ fn main() {
 		.expect("Failed to execute command `fd`")
 		.stdout;
 
-	let mut paths = path::create_paths(stdout);
+	let paths = path::create_paths(stdout);
 	let n_paths = paths.len();
+	let root = path::create_tree(&paths);
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
 	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES);
 	let mut chars = Vec::new();
-	let mut indices: Vec<usize> = (0..paths.len()).collect();
+	let mut n_matches = paths.len();
 	let mut n_selected: usize = 0;
 	let mut offset = 0;
 
 	ui.goto_start();
 	ui.print_input_line("");
-	tui::print_info_line(n_selected, indices.len(), n_paths);
-	ui.print_body(&paths[..], &indices[offset..]);
+	tui::print_info_line(n_selected, n_matches, n_paths);
+	ui.print_body(path::tree_string(&root, n_paths));
 	ui.return_cursor();
 	ui.flush();
 
-	for c in tui::iter_keys() {
-		let mut chars_changed = false;
+	let mut chars_changed = false;
 
+	for c in tui::iter_keys() {
 		match c.unwrap() {
 			Key::Esc => break,
 			Key::Char(c) => {
 				if c == '\t' {
-					let idx = indices[ui.line_pos as usize + offset];
-					if paths[idx].selected {
-						paths[idx].selected = false;
+					let mut pth = path::get_n(&paths, ui.line_pos as usize + offset)
+						.unwrap()
+						.borrow_mut();
+					if pth.selected {
+						pth.selected = false;
 						n_selected -= 1;
 					} else {
-						paths[idx].selected = true;
+						pth.selected = true;
 						n_selected += 1;
 					}
 				} else if c == '\n' {
@@ -59,7 +64,7 @@ fn main() {
 					let _ = paths
 						.iter()
 						.map(|p| {
-							if p.selected {
+							if p.borrow().selected {
 								println!("{}", p.joined());
 							}
 						})
@@ -83,9 +88,6 @@ fn main() {
 				}
 			}
 			Key::Up => {
-				// if ui.line_pos > 0 {
-				// 	ui.line_pos -= 1;
-				// }
 				let x = ui.line_pos as usize;
 				if x + offset == 0 {
 					// Do nout
@@ -97,7 +99,7 @@ fn main() {
 			}
 			Key::Down => {
 				let x = ui.line_pos as usize;
-				if x + offset == indices.len() - 1 {
+				if x + offset == n_matches - 1 {
 					// Do nout
 				} else if x == DISPLAY_LINES - 3 {
 					offset += 1;
@@ -124,14 +126,14 @@ fn main() {
 		}
 
 		if chars_changed {
-			indices = path::filter(&paths[..], &chars_to_str(&chars));
-			ui.line_pos = cmp::min(ui.line_pos, (cmp::max(1, indices.len()) - 1) as u16);
+			n_matches = path::update_matched(&paths, &chars_to_str(&chars));
+			ui.line_pos = cmp::min(ui.line_pos, (cmp::max(1, n_matches) - 1) as u16);
 		}
 
 		ui.goto_start();
 		ui.print_input_line(&chars_to_str(&chars));
-		tui::print_info_line(n_selected, indices.len(), n_paths);
-		ui.print_body(&paths[..], &indices[offset..]);
+		tui::print_info_line(n_selected, n_matches, n_paths);
+		ui.print_body(path::tree_string(&root, n_paths));
 		ui.return_cursor();
 		ui.flush();
 	}

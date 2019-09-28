@@ -1,4 +1,3 @@
-use crate::path;
 use std::io::{self, Write};
 use termion::cursor::DetectCursorPos;
 use termion::input::TermRead;
@@ -9,27 +8,23 @@ pub fn println_cleared(s: &str) {
 	print!("{}{}\r\n", clear::CurrentLine, s);
 }
 
-fn print_tree(paths: &[path::Path], pos: u16, indices: &[usize], display_lines: usize) {
+fn print_tree(lines: Vec<String>, pos: u16, display_lines: usize) {
 	let highlight = format!(
 		"{}{}>",
 		color::Bg(color::Rgb(50, 50, 50)),
 		color::Fg(color::Red)
 	);
-	let selected = format!("{}>", color::Fg(color::LightRed));
 
-	for (i, idx) in indices.iter().enumerate() {
+	for (i, line) in lines.iter().enumerate() {
 		if i == display_lines {
 			break;
 		}
 
-		let pth = &paths[*idx];
 		print!(
-			"{}{}{}{} {:?}{}\r\n",
+			"{}{}{}{}\r\n",
 			clear::CurrentLine,
 			if i == (pos as usize) { &highlight } else { " " },
-			if pth.selected { &selected } else { " " },
-			color::Fg(color::Reset),
-			pth,
+			line,
 			color::Bg(color::Reset)
 		);
 	}
@@ -91,9 +86,9 @@ impl Tui {
 		println_cleared(&format!("{}{}", self.prompt, string));
 	}
 
-	pub fn print_body(&self, paths: &[path::Path], indices: &[usize]) {
+	pub fn print_body(&self, lines: Vec<String>) {
 		print!("{}", clear::AfterCursor);
-		print_tree(paths, self.line_pos, indices, self.display_lines - 2);
+		print_tree(lines, self.line_pos, self.display_lines - 2);
 	}
 
 	pub fn return_cursor(&self) {
