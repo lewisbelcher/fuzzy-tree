@@ -24,20 +24,20 @@ fn main() {
 		.stdout;
 
 	let paths = path::create_paths(stdout);
-	let n_paths = paths.len();
+	let n_paths = paths.len() - 1; // NB we ignore the root
 	let root = path::create_tree(&paths);
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
 	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES);
 	let mut chars = Vec::new();
-	let mut n_matches = paths.len();
+	let mut n_matches = n_paths;
 	let mut n_selected: usize = 0;
 	let mut offset = 0;
 
 	ui.goto_start();
 	ui.print_input_line("");
 	tui::print_info_line(n_selected, n_matches, n_paths);
-	ui.print_body(path::tree_string(&root, n_paths));
+	ui.print_body(&path::tree_string(&root, n_paths)[offset..]);
 	ui.return_cursor();
 	ui.flush();
 
@@ -48,7 +48,8 @@ fn main() {
 			Key::Esc => break,
 			Key::Char(c) => {
 				if c == '\t' {
-					let mut pth = path::get_n(&paths, ui.line_pos as usize + offset)
+					// NB +1 due to root dir being present
+					let mut pth = path::get_n(&paths, ui.line_pos as usize + offset + 1)
 						.unwrap()
 						.borrow_mut();
 					if pth.selected {
@@ -60,12 +61,12 @@ fn main() {
 					}
 				} else if c == '\n' {
 					ui.goto_start();
-					print!("{}", clear::CurrentLine);
+					print!("{}", clear::AfterCursor);
 					let _ = paths
 						.iter()
 						.map(|p| {
 							if p.borrow().selected {
-								println!("{}", p.joined());
+								print!("{} ", p.joined());
 							}
 						})
 						.collect::<()>();
@@ -133,7 +134,7 @@ fn main() {
 		ui.goto_start();
 		ui.print_input_line(&chars_to_str(&chars));
 		tui::print_info_line(n_selected, n_matches, n_paths);
-		ui.print_body(path::tree_string(&root, n_paths));
+		ui.print_body(&path::tree_string(&root, n_paths)[offset..]);
 		ui.return_cursor();
 		ui.flush();
 	}

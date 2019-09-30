@@ -1,3 +1,4 @@
+use log::debug;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt;
@@ -23,7 +24,11 @@ pub struct Path {
 
 impl fmt::Debug for Path {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{:?}; Children {:#?}:", self.components, self.children)
+		write!(
+			f,
+			"{:?}; Selected: {}; Matched {}; Children {:#?}:",
+			self.components, self.selected, self.matched, self.children
+		)
 	}
 }
 
@@ -152,10 +157,12 @@ fn _match(pth: &RcPath, pattern: &str) -> bool {
 	true
 }
 
-/// Update which paths are matched by `pattern`.
+/// Update which paths are matched by `pattern`. NB we skip the root note and
+/// allow it to always be matched... The treatment of the root note should be
+/// dealt with...
 pub fn update_matched<'t>(paths: &'t Vec<RcPath>, pattern: &str) -> usize {
 	let mut matched = 0;
-	for pth in paths {
+	for pth in paths[1..].iter() {
 		if _match(pth, pattern) {
 			pth.borrow_mut().matched = true;
 			matched += 1;
@@ -195,10 +202,10 @@ fn peek(stack: &[RcPath], i: usize) -> Option<&RcPath> {
 
 macro_rules! debug_relation {
 	($obj1:expr; child $obj2:expr) => {
-		println!("{:?} is child of {:?}", $obj1.borrow(), $obj2.borrow());
+		debug!("{:?} is child of {:?}", $obj1.borrow(), $obj2.borrow());
 	};
 	($obj1:expr; unrelated $obj2:expr, $obj3:expr) => {
-		println!(
+		debug!(
 			"{:?} is unrelated to {:?} and {:?}",
 			$obj1.borrow(),
 			$obj2.borrow(),
@@ -226,7 +233,7 @@ fn _create_tree<'a>(
 ) -> usize {
 	// TODO: Use log package
 	loop {
-		println!("~~~ {} ~~~", i);
+		debug!("~~~ {} ~~~", i);
 		i += 1;
 		if let Some(next) = peek(stack, i) {
 			if let Some(prev) = prev {
@@ -277,7 +284,7 @@ fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
 				("│   ", "├── ")
 			};
 
-			let sel = if root.borrow().selected {
+			let sel = if child.borrow().selected {
 				&SELECTED
 			} else {
 				" "
@@ -472,5 +479,23 @@ mod test {
  │       └── b.c
  └── x.txt";
 		assert_eq!(lines.join("\n"), expected);
+	}
+
+	#[test]
+	fn update_matched_test() {
+		let paths = create_test_paths();
+
+		let n_matches = update_matched(&paths, "tmp");
+		assert_eq!(n_matches, 0);
+
+		let n_matches = update_matched(&paths, "src");
+		assert_eq!(n_matches, 7);
+		let mut expected: Vec<usize> = (3..10).collect();
+		expected.push(0);
+
+		for (i, pth) in paths.iter().enumerate() {
+			let should_match = expected.contains(&i);
+			assert_eq!(pth.borrow().matched, should_match);
+		}
 	}
 }

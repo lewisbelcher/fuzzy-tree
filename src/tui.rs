@@ -8,11 +8,12 @@ pub fn println_cleared(s: &str) {
 	print!("{}{}\r\n", clear::CurrentLine, s);
 }
 
-fn print_tree(lines: Vec<String>, pos: u16, display_lines: usize) {
+fn print_tree(lines: &[String], pos: u16, display_lines: usize) {
 	let highlight = format!(
-		"{}{}>",
+		"{}{}>{}",
 		color::Bg(color::Rgb(50, 50, 50)),
-		color::Fg(color::Red)
+		color::Fg(color::Red),
+		color::Fg(color::Reset),
 	);
 
 	for (i, line) in lines.iter().enumerate() {
@@ -32,11 +33,12 @@ fn print_tree(lines: Vec<String>, pos: u16, display_lines: usize) {
 
 pub fn print_info_line(n_selected: usize, n_shown: usize, n_total: usize) {
 	println_cleared(&format!(
-		"{}(selected: {}, shown: {}, total: {})",
+		"{}(selected: {}, shown: {}, total: {}){}",
 		color::Fg(color::LightGreen),
 		n_selected,
 		n_shown,
 		n_total,
+		color::Fg(color::Reset),
 	));
 }
 
@@ -86,7 +88,7 @@ impl Tui {
 		println_cleared(&format!("{}{}", self.prompt, string));
 	}
 
-	pub fn print_body(&self, lines: Vec<String>) {
+	pub fn print_body(&self, lines: &[String]) {
 		print!("{}", clear::AfterCursor);
 		print_tree(lines, self.line_pos, self.display_lines - 2);
 	}
