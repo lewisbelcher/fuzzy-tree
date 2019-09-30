@@ -1,4 +1,3 @@
 /target
 **/*.rs.bk
-tmp
 Cargo.lock
