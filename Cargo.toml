@@ -5,4 +5,6 @@ authors = ["Lewis Belcher <belcher_lewis@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+lazy_static = "1.4"
+log = "0.4"
 termion = "1"
