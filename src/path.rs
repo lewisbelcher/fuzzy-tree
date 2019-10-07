@@ -157,18 +157,39 @@ fn _match(pth: &RcPath, pattern: &str) -> bool {
 	true
 }
 
+// NB Since paths are assumed to be sorted, we KNOW that we'll iterate
+// children after parents
+fn match_stack(node: &RcPath, seen: &mut Vec<String>) -> usize {
+	let mut n = 1;
+	node.borrow_mut().matched = true;
+	seen.push(node.joined());
+
+	if let Some(parent) = &node.borrow().parent {
+		let rf = parent.joined(); // TODO: Should be able to use parent directly..
+		if !seen.contains(&rf) {
+			seen.push(rf);
+			n += match_stack(parent, seen);
+		}
+	}
+	return n;
+}
+
 /// Update which paths are matched by `pattern`. NB we skip the root note and
 /// allow it to always be matched... The treatment of the root note should be
 /// dealt with...
-pub fn update_matched<'t>(paths: &'t Vec<RcPath>, pattern: &str) -> usize {
+pub fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
+	let mut seen = Vec::new();
+
 	let mut matched = 0;
 	for pth in paths[1..].iter() {
 		if _match(pth, pattern) {
-			pth.borrow_mut().matched = true;
-			matched += 1;
+			matched += match_stack(pth, &mut seen);
 		} else {
 			pth.borrow_mut().matched = false;
 		}
+	}
+	if matched > 0 {
+		matched -= 1;
 	}
 	matched
 }
@@ -456,29 +477,59 @@ mod test {
 		let mut paths = create_test_paths();
 		let root = create_test_tree(&paths);
 		let lines = tree_string(&root, paths.len());
-		let expected = " ├── A
- ├── B
- ├── src
- │   ├── bayes
- │   │   ├── blend.c
- │   │   └── rand.c
- │   └── cakes
- │       ├── a.c
- │       └── b.c
- └── x.txt";
-		assert_eq!(lines.join("\n"), expected);
+		let expected = vec![
+			" ├── A",
+			" ├── B",
+			" ├── src",
+			" │   ├── bayes",
+			" │   │   ├── blend.c",
+			" │   │   └── rand.c",
+			" │   └── cakes",
+			" │       ├── a.c",
+			" │       └── b.c",
+			" └── x.txt",
+		];
+		assert_eq!(lines, expected);
 
 		// Deselect `./src/bayes` and print again
 		paths[4].borrow_mut().matched = false;
 		let lines = tree_string(&root, paths.len());
-		let expected = " ├── A
- ├── B
- ├── src
- │   └── cakes
- │       ├── a.c
- │       └── b.c
- └── x.txt";
-		assert_eq!(lines.join("\n"), expected);
+		let expected = vec![
+			" ├── A",
+			" ├── B",
+			" ├── src",
+			" │   └── cakes",
+			" │       ├── a.c",
+			" │       └── b.c",
+			" └── x.txt",
+		];
+		assert_eq!(lines, expected);
+	}
+
+	#[test]
+	fn correct_lines_after_filtering_children() {
+		let paths = create_test_paths();
+		let root = create_test_tree(&paths);
+		let n_matches = update_matched(&paths, "b");
+		let lines = tree_string(&root, paths.len());
+		let expected = vec![
+			" └── src",
+			"     ├── bayes",
+			"     │   ├── blend.c",
+			"     │   └── rand.c",
+			"     └── cakes",
+			"         └── b.c",
+		];
+		assert_eq!(n_matches, expected.len());
+		assert_eq!(lines, expected);
+	}
+
+	#[test]
+	fn correct_n_matched_after_matching_with_empty_string() {
+		let paths = create_test_paths();
+		let _ = create_test_tree(&paths);
+		let n_matches = update_matched(&paths, "");
+		assert_eq!(n_matches, paths.len() - 1); // NB -1 for root
 	}
 
 	#[test]
@@ -489,7 +540,7 @@ mod test {
 		assert_eq!(n_matches, 0);
 
 		let n_matches = update_matched(&paths, "src");
-		assert_eq!(n_matches, 7);
+		assert_eq!(n_matches, 6);
 		let mut expected: Vec<usize> = (3..10).collect();
 		expected.push(0);
 

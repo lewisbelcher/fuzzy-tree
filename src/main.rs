@@ -128,7 +128,9 @@ fn main() {
 
 		if chars_changed {
 			n_matches = path::update_matched(&paths, &chars_to_str(&chars));
-			ui.line_pos = cmp::min(ui.line_pos, (cmp::max(1, n_matches) - 1) as u16);
+			let x = cmp::max(1, n_matches) - 1;
+			ui.line_pos = cmp::min(ui.line_pos, x as u16);
+			offset = cmp::min(offset, x)
 		}
 
 		ui.goto_start();
