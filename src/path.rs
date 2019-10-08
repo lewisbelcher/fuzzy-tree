@@ -83,9 +83,8 @@ fn add(child: &RcPath, parent: &RcPath) {
 	child.borrow_mut().parent = Some(Rc::clone(parent));
 }
 
-/// Since Paths are wrapped in Rc's which cannot be implemented on directly,
-/// functionality has to be implemented via trait. These could be split into
-/// logical groups of behaviours.
+/// Since `Path`s are wrapped in `Rc`s which cannot be implemented on directly,
+/// functionality has to be implemented via trait.
 pub trait PathBehaviour {
 	fn add_child(&self, child: &RcPath);
 	fn add_parent(&self, parent: &RcPath);
@@ -127,18 +126,66 @@ impl PathBehaviour for RcPath {
 	}
 }
 
-/// Get the nth *matched* path from a vec of paths
-pub fn get_n(paths: &Vec<RcPath>, i: usize) -> Option<&RcPath> {
-	let mut matches = 0;
-	for pth in paths {
-		if pth.borrow().matched {
-			if matches == i {
-				return Some(pth);
-			}
-			matches += 1;
+pub struct Tree {
+	pub paths: Vec<RcPath>,
+	pub tree: RcPath,
+	pub n_paths: usize,
+	pub n_matches: usize,
+	pub n_selected: usize,
+}
+
+impl Tree {
+	pub fn new(stdout: Vec<u8>) -> Self {
+		let paths = create_paths(stdout);
+		let tree = create_tree(&paths);
+		let n_paths = paths.len();
+
+		Self {
+			paths,
+			tree,
+			n_paths,
+			n_matches: n_paths,
+			n_selected: 0,
 		}
 	}
-	None
+
+	pub fn filter(&mut self, text: &str) {
+		self.n_matches = update_matched(&self.paths, text);
+	}
+
+	pub fn as_lines(&self) -> Vec<String> {
+		tree_string(&self.tree, self.n_paths)
+	}
+
+	pub fn info_line(&self) -> String {
+		format!(
+			"(selected: {}, shown: {}, total: {})",
+			self.n_selected, self.n_matches, self.n_paths,
+		)
+	}
+
+	/// Flip the `selected` status of the `i`th matched path.
+	pub fn flip_selected(&mut self, i: usize) {
+		let mut matches = 0;
+
+		for pth in &self.paths {
+			let mut pth = pth.borrow_mut();
+			if pth.matched {
+				if matches == i {
+					if pth.selected {
+						pth.selected = false;
+						self.n_selected -= 1;
+					} else {
+						pth.selected = true;
+						self.n_selected += 1;
+					}
+					return
+				}
+				matches += 1;
+			}
+		}
+		panic!("gulp");
+	}
 }
 
 fn _match(pth: &RcPath, pattern: &str) -> bool {
@@ -341,12 +388,12 @@ fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) 
 	}
 }
 
-/// Create a string representation of the tree from root directory `root`.
-/// We can preallocate the exact capacity by knowing the number of paths
-/// we are constructing for.
-pub fn tree_string(root: &RcPath, len: usize) -> Vec<String> {
+/// Create a vec of strings representing the directory tree `tree`. We can
+/// preallocate the exact capacity by knowing the number of paths we are
+/// constructing for.
+pub fn tree_string(tree: &RcPath, len: usize) -> Vec<String> {
 	let mut lines = Vec::with_capacity(len);
-	_tree_string(root, &mut lines, Vec::new());
+	_tree_string(tree, &mut lines, Vec::new());
 	lines
 }
 
@@ -483,16 +530,16 @@ mod test {
 	#[test]
 	fn create_tree_correct() {
 		let paths = create_test_paths();
-		let root = create_tree(&paths);
-		let root2 = create_test_tree(&paths);
-		assert!(trees_equal(&root, &root2));
+		let tree = create_tree(&paths);
+		let tree2 = create_test_tree(&paths);
+		assert!(trees_equal(&tree, &tree2));
 	}
 
 	#[test]
 	fn tree_string_test() {
 		let mut paths = create_test_paths();
-		let root = create_test_tree(&paths);
-		let lines = tree_string(&root, paths.len());
+		let tree = create_test_tree(&paths);
+		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
 			" .",
 			" ├── A",
@@ -510,7 +557,7 @@ mod test {
 
 		// Deselect `./src/bayes` and print again
 		paths[4].borrow_mut().matched = false;
-		let lines = tree_string(&root, paths.len());
+		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
 			" .",
 			" ├── A",
@@ -527,9 +574,9 @@ mod test {
 	#[test]
 	fn correct_lines_after_filtering_children() {
 		let paths = create_test_paths();
-		let root = create_test_tree(&paths);
+		let tree = create_test_tree(&paths);
 		let n_matches = update_matched(&paths, "b");
-		let lines = tree_string(&root, paths.len());
+		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
 			" .",
 			" └── src",
