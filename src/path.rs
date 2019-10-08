@@ -157,15 +157,15 @@ fn _match(pth: &RcPath, pattern: &str) -> bool {
 	true
 }
 
-// NB Since paths are assumed to be sorted, we KNOW that we'll iterate
+// NB Since paths are assumed to be sorted, we assume that we'll iterate
 // children after parents
 fn match_stack(node: &RcPath, seen: &mut Vec<String>) -> usize {
 	let mut n = 1;
 	node.borrow_mut().matched = true;
-	seen.push(node.joined());
+	seen.push(node.joined()); // TODO: Should be able to use parent directly..
 
 	if let Some(parent) = &node.borrow().parent {
-		let rf = parent.joined(); // TODO: Should be able to use parent directly..
+		let rf = parent.joined();
 		if !seen.contains(&rf) {
 			seen.push(rf);
 			n += match_stack(parent, seen);
@@ -174,22 +174,17 @@ fn match_stack(node: &RcPath, seen: &mut Vec<String>) -> usize {
 	return n;
 }
 
-/// Update which paths are matched by `pattern`. NB we skip the root note and
-/// allow it to always be matched... The treatment of the root note should be
-/// dealt with...
+/// Update which paths are matched by `pattern`.
 pub fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
 	let mut seen = Vec::new();
 
 	let mut matched = 0;
-	for pth in paths[1..].iter() {
+	for pth in paths {
 		if _match(pth, pattern) {
 			matched += match_stack(pth, &mut seen);
 		} else {
 			pth.borrow_mut().matched = false;
 		}
-	}
-	if matched > 0 {
-		matched -= 1;
 	}
 	matched
 }
@@ -293,21 +288,24 @@ pub fn create_tree(paths: &Vec<RcPath>) -> RcPath {
 	Rc::clone(&paths[0])
 }
 
+#[derive(Clone)]
 enum Segment {
 	Continuation, // "│   " up to basename, "├── " at basename
 	End,          // "    " up to basename, "└── " at basename
 }
 
-fn segments_to_string(segments: Vec<Segment>) -> String {
+fn segments_to_string(segments: &Vec<Segment>) -> String {
+	// Each char is 4 bytes, each string representation is 4 chars
 	let mut s = String::with_capacity(4 * 4 * segments.len());
+
 	if segments.is_empty() {
 		return s;
 	}
 
-	for seg in segments[..segments.len() - 1] {
+	for seg in segments[..segments.len() - 1].iter() {
 		s.push_str(match seg {
-			Segment::Continuation => "|  ",
-			Segment::End => "   ",
+			Segment::Continuation => "│   ",
+			Segment::End => "    ",
 		});
 	}
 	s.push_str(match segments[segments.len() - 1] {
@@ -319,26 +317,26 @@ fn segments_to_string(segments: Vec<Segment>) -> String {
 
 /// Inner recursive function to create a string representation of a directory
 /// tree.
-fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
-	let sel = if root.borrow().selected {
+fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) {
+	let sel = if node.borrow().selected {
 		&SELECTED
 	} else {
 		" "
 	};
 
-	// We can replace all prefix groups up to the end by their spaced counterparts..
+	lines.push(sel.to_owned() + &segments_to_string(&segments) + node.basename());
 
-	lines.push(sel.to_owned() + prefix + root.basename());
-
-	if let Some(children) = &root.borrow().children {
+	if let Some(children) = &node.borrow().children {
 		let children: Vec<&RcPath> = children.iter().filter(|x| x.borrow().matched).collect();
 		for (i, child) in children.iter().enumerate() {
-			let (pre, addon) = if i == children.len() - 1 {
-				("    ", "└── ")
+			let mut segments = segments.clone();
+
+			segments.push(if i == children.len() - 1 {
+				Segment::End
 			} else {
-				("│   ", "├── ")
-			};
-			_tree_string(child, lines, &(prefix.to_owned() + addon));
+				Segment::Continuation
+			});
+			_tree_string(child, lines, segments);
 		}
 	}
 }
@@ -348,7 +346,7 @@ fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
 /// we are constructing for.
 pub fn tree_string(root: &RcPath, len: usize) -> Vec<String> {
 	let mut lines = Vec::with_capacity(len);
-	_tree_string(root, &mut lines, "");
+	_tree_string(root, &mut lines, Vec::new());
 	lines
 }
 
@@ -496,6 +494,7 @@ mod test {
 		let root = create_test_tree(&paths);
 		let lines = tree_string(&root, paths.len());
 		let expected = vec![
+			" .",
 			" ├── A",
 			" ├── B",
 			" ├── src",
@@ -513,6 +512,7 @@ mod test {
 		paths[4].borrow_mut().matched = false;
 		let lines = tree_string(&root, paths.len());
 		let expected = vec![
+			" .",
 			" ├── A",
 			" ├── B",
 			" ├── src",
@@ -539,9 +539,7 @@ mod test {
 			"     └── cakes",
 			"         └── b.c",
 		];
-		println!("{}", expected.join("\n"));
-		println!("{}", lines.join("\n"));
-		assert_eq!(n_matches + 1, expected.len());
+		assert_eq!(n_matches, expected.len());
 		assert_eq!(lines, expected);
 	}
 
@@ -550,18 +548,19 @@ mod test {
 		let paths = create_test_paths();
 		let _ = create_test_tree(&paths);
 		let n_matches = update_matched(&paths, "");
-		assert_eq!(n_matches, paths.len() - 1); // NB -1 for root
+		assert_eq!(n_matches, paths.len());
 	}
 
 	#[test]
 	fn update_matched_test() {
 		let paths = create_test_paths();
+		let _ = create_test_tree(&paths);
 
 		let n_matches = update_matched(&paths, "tmp");
 		assert_eq!(n_matches, 0);
 
 		let n_matches = update_matched(&paths, "src");
-		assert_eq!(n_matches, 6);
+		assert_eq!(n_matches, 8);
 		let mut expected: Vec<usize> = (3..10).collect();
 		expected.push(0);
 

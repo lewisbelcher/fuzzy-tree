@@ -24,7 +24,7 @@ fn main() {
 		.stdout;
 
 	let paths = path::create_paths(stdout);
-	let n_paths = paths.len() - 1; // NB we ignore the root
+	let n_paths = paths.len();
 	let root = path::create_tree(&paths);
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
@@ -48,8 +48,7 @@ fn main() {
 			Key::Esc => break,
 			Key::Char(c) => {
 				if c == '\t' {
-					// NB +1 due to root dir being present
-					let mut pth = path::get_n(&paths, ui.line_pos as usize + offset + 1)
+					let mut pth = path::get_n(&paths, ui.line_pos as usize + offset)
 						.unwrap()
 						.borrow_mut();
 					if pth.selected {
