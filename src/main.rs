@@ -29,6 +29,7 @@ fn main() {
 			Key::Char(c) => {
 				if c == '\t' {
 					tree.flip_selected(ui.index());
+					ui.move_down();
 				} else if c == '\n' {
 					ui.print_paths(&tree.paths);
 					break;
