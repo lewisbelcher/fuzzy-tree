@@ -293,9 +293,43 @@ pub fn create_tree(paths: &Vec<RcPath>) -> RcPath {
 	Rc::clone(&paths[0])
 }
 
+enum Segment {
+	Continuation, // "│   " up to basename, "├── " at basename
+	End,          // "    " up to basename, "└── " at basename
+}
+
+fn segments_to_string(segments: Vec<Segment>) -> String {
+	let mut s = String::with_capacity(4 * 4 * segments.len());
+	if segments.is_empty() {
+		return s;
+	}
+
+	for seg in segments[..segments.len() - 1] {
+		s.push_str(match seg {
+			Segment::Continuation => "|  ",
+			Segment::End => "   ",
+		});
+	}
+	s.push_str(match segments[segments.len() - 1] {
+		Segment::Continuation => "├── ",
+		Segment::End => "└── ",
+	});
+	s
+}
+
 /// Inner recursive function to create a string representation of a directory
 /// tree.
 fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
+	let sel = if root.borrow().selected {
+		&SELECTED
+	} else {
+		" "
+	};
+
+	// We can replace all prefix groups up to the end by their spaced counterparts..
+
+	lines.push(sel.to_owned() + prefix + root.basename());
+
 	if let Some(children) = &root.borrow().children {
 		let children: Vec<&RcPath> = children.iter().filter(|x| x.borrow().matched).collect();
 		for (i, child) in children.iter().enumerate() {
@@ -304,24 +338,8 @@ fn _tree_string(root: &RcPath, lines: &mut Vec<String>, prefix: &str) {
 			} else {
 				("│   ", "├── ")
 			};
-
-			let sel = if child.borrow().selected {
-				&SELECTED
-			} else {
-				" "
-			};
-			lines.push(sel.to_owned() + prefix + addon + child.basename());
-			if child.borrow().children.is_some() {
-				_tree_string(child, lines, &(prefix.to_owned() + pre));
-			}
+			_tree_string(child, lines, &(prefix.to_owned() + addon));
 		}
-	} else {
-		let sel = if root.borrow().selected {
-			&SELECTED
-		} else {
-			" "
-		};
-		lines.push(sel.to_owned() + prefix + root.basename());
 	}
 }
 
@@ -513,6 +531,7 @@ mod test {
 		let n_matches = update_matched(&paths, "b");
 		let lines = tree_string(&root, paths.len());
 		let expected = vec![
+			" .",
 			" └── src",
 			"     ├── bayes",
 			"     │   ├── blend.c",
@@ -520,7 +539,9 @@ mod test {
 			"     └── cakes",
 			"         └── b.c",
 		];
-		assert_eq!(n_matches, expected.len());
+		println!("{}", expected.join("\n"));
+		println!("{}", lines.join("\n"));
+		assert_eq!(n_matches + 1, expected.len());
 		assert_eq!(lines, expected);
 	}
 
