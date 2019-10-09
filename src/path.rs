@@ -18,6 +18,7 @@ pub struct Path {
 	parent: Option<RcPath>,
 	components: Vec<String>,
 	pub selected: bool,
+	pub joined: String,
 	matched: bool,
 	children: Option<Vec<RcPath>>,
 }
@@ -62,6 +63,7 @@ impl Path {
 				.split(path::MAIN_SEPARATOR)
 				.map(|x| x.to_string())
 				.collect(),
+			joined: string,
 			selected: false,
 			matched: true,
 			children: None,
@@ -89,7 +91,6 @@ pub trait PathBehaviour {
 	fn add_child(&self, child: &RcPath);
 	fn add_parent(&self, parent: &RcPath);
 	fn is_child_of(&self, other: &RcPath) -> bool;
-	fn joined(&self) -> String;
 	fn basename(&self) -> &str;
 	fn len(&self) -> usize;
 }
@@ -108,12 +109,6 @@ impl PathBehaviour for RcPath {
 			return false;
 		}
 		self.borrow().components[..other.len()] == other.borrow().components[..]
-	}
-
-	fn joined(&self) -> String {
-		self.borrow()
-			.components
-			.join(&path::MAIN_SEPARATOR.to_string())
 	}
 
 	fn basename(&self) -> &str {
@@ -179,7 +174,7 @@ impl Tree {
 						pth.selected = true;
 						self.n_selected += 1;
 					}
-					return
+					return;
 				}
 				matches += 1;
 			}
@@ -204,17 +199,26 @@ fn _match(pth: &RcPath, pattern: &str) -> bool {
 	true
 }
 
+// TODO: Should be able to use node directly instead of a clone of the
+// joined path....
+fn push_seen(seen: &mut Vec<String>, node: &RcPath) -> bool {
+	let rf = &node.borrow().joined;
+	if !seen.contains(rf) {
+		seen.push(rf.clone());
+		return true;
+	}
+	false
+}
+
 // NB Since paths are assumed to be sorted, we assume that we'll iterate
 // children after parents
 fn match_stack(node: &RcPath, seen: &mut Vec<String>) -> usize {
 	let mut n = 1;
 	node.borrow_mut().matched = true;
-	seen.push(node.joined()); // TODO: Should be able to use parent directly..
+	push_seen(seen, &node);
 
 	if let Some(parent) = &node.borrow().parent {
-		let rf = parent.joined();
-		if !seen.contains(&rf) {
-			seen.push(rf);
+		if push_seen(seen, &parent) {
 			n += match_stack(parent, seen);
 		}
 	}
@@ -448,13 +452,6 @@ mod test {
 		let s = "here/is/a/path.c";
 		let path = Path::from(s);
 		assert_eq!(path.basename(), "path.c");
-	}
-
-	#[test]
-	fn joined_joins_components() {
-		let s = "here/is/a/path.c";
-		let path = Path::from(s);
-		assert_eq!(path.joined(), s);
 	}
 
 	#[test]
