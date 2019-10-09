@@ -203,11 +203,12 @@ fn _match(pth: &RcPath, pattern: &str) -> bool {
 // joined path....
 fn push_seen(seen: &mut Vec<String>, node: &RcPath) -> bool {
 	let rf = &node.borrow().joined;
-	if !seen.contains(rf) {
+	if seen.contains(rf) {
+		false
+	} else {
 		seen.push(rf.clone());
-		return true;
+		true
 	}
-	false
 }
 
 // NB Since paths are assumed to be sorted, we assume that we'll iterate
