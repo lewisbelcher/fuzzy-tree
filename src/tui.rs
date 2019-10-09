@@ -1,4 +1,4 @@
-use crate::path::{self, PathBehaviour};
+use crate::path;
 use std::cmp;
 use std::io::{self, Write};
 use termion::cursor::DetectCursorPos;
@@ -184,8 +184,9 @@ impl Tui {
 		let _ = paths
 			.iter()
 			.map(|p| {
-				if p.borrow().selected {
-					print!("{} ", p.joined());
+				let p = p.borrow();
+				if p.selected {
+					print!("{} ", &p.joined);
 				}
 			})
 			.collect::<()>();
