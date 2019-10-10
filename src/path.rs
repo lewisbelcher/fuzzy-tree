@@ -130,7 +130,7 @@ pub struct Tree {
 }
 
 impl Tree {
-	pub fn new(stdout: Vec<u8>) -> Self {
+	pub fn from_stdout(stdout: Vec<u8>) -> Self {
 		let paths = create_paths(stdout);
 		let tree = create_tree(&paths);
 		let n_paths = paths.len();
@@ -149,7 +149,7 @@ impl Tree {
 	}
 
 	pub fn as_lines(&self) -> Vec<String> {
-		tree_string(&self.tree, self.n_paths)
+		tree_string(&self.tree, self.n_matches)
 	}
 
 	pub fn info_line(&self) -> String {
@@ -398,7 +398,9 @@ fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) 
 /// constructing for.
 pub fn tree_string(tree: &RcPath, len: usize) -> Vec<String> {
 	let mut lines = Vec::with_capacity(len);
-	_tree_string(tree, &mut lines, Vec::new());
+	if len > 0 {
+		_tree_string(tree, &mut lines, Vec::new());
+	}
 	lines
 }
 
@@ -603,6 +605,9 @@ mod test {
 
 		let n_matches = update_matched(&paths, "tmp");
 		assert_eq!(n_matches, 0);
+		for pth in paths.iter() {
+			assert_eq!(pth.borrow().matched, false);
+		}
 
 		let n_matches = update_matched(&paths, "src");
 		assert_eq!(n_matches, 8);
@@ -613,5 +618,15 @@ mod test {
 			let should_match = expected.contains(&i);
 			assert_eq!(pth.borrow().matched, should_match);
 		}
+	}
+
+	#[test]
+	fn correct_tree_string() {
+		let paths = create_test_paths();
+		let tree = create_test_tree(&paths);
+		let n_matches = update_matched(&paths, "XX");
+		let response = tree_string(&tree, n_matches);
+		let expected: Vec<String> = vec![];
+		assert_eq!(response, expected);
 	}
 }

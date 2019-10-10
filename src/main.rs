@@ -14,7 +14,7 @@ fn main() {
 		.expect("Failed to execute command `fd`")
 		.stdout;
 
-	let mut tree = path::Tree::new(stdout);
+	let mut tree = path::Tree::from_stdout(stdout);
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
 	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES);
