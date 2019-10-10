@@ -192,8 +192,17 @@ impl Tui {
 			.collect::<()>();
 	}
 
+	fn adjust_offset(&mut self, new_len: usize) {
+		let current_lines = self.current_lines.unwrap();
+		if new_len < current_lines {
+			let diff = cmp::min(self.offset, current_lines - new_len);
+			self.offset -= diff;
+		}
+	}
+
 	pub fn render(&mut self, info_line: String, path_lines: Vec<String>) {
 		if self.chars_changed {
+			self.adjust_offset(path_lines.len());
 			let x = cmp::max(1, path_lines.len()) - 1;
 			self.line_pos = cmp::min(self.line_pos, x as u16);
 			self.offset = cmp::min(self.offset, x)
