@@ -1,9 +1,10 @@
 use log::debug;
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt;
 use std::path;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use termion::color;
 
 pub type RcPath = Rc<RefCell<Path>>;
@@ -127,6 +128,7 @@ pub struct Tree {
 	pub n_paths: usize,
 	pub n_matches: usize,
 	pub n_selected: usize,
+	cache: HashMap<String, Vec<usize>>, // Implement sized cache?
 }
 
 impl Tree {
@@ -141,11 +143,18 @@ impl Tree {
 			n_paths,
 			n_matches: n_paths,
 			n_selected: 0,
+			cache: HashMap::new(),
 		}
 	}
 
 	pub fn filter(&mut self, text: &str) {
-		self.n_matches = update_matched(&self.paths, text);
+		self.n_matches = if let Some(idx) = self.cache.get(text) {
+			update_matched_idx(&self.paths, idx)
+		} else {
+			let n = update_matched(&self.paths, text);
+			self.cache.insert(text.to_string(), match_indices(&self.paths));
+			n
+		}
 	}
 
 	pub fn as_lines(&self) -> Vec<String> {
@@ -226,8 +235,22 @@ fn match_stack(node: &RcPath, seen: &mut Vec<String>) -> usize {
 	return n;
 }
 
+fn match_indices(paths: &Vec<RcPath>) -> Vec<usize> {
+	let mut idx = Vec::new();
+	paths
+		.iter()
+		.enumerate()
+		.map(|(i, x)| {
+			if x.borrow().matched {
+				idx.push(i);
+			}
+		})
+		.for_each(drop);
+	idx
+}
+
 /// Update which paths are matched by `pattern`.
-pub fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
+fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
 	let mut seen = Vec::new();
 
 	let mut matched = 0;
@@ -239,6 +262,21 @@ pub fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
 		}
 	}
 	matched
+}
+
+/// Update the matched field of `paths` based on whether their index is
+/// contained in `idx`.
+fn update_matched_idx(paths: &Vec<RcPath>, idx: &Vec<usize>) -> usize {
+	let mut n = 0;
+	paths.iter().enumerate().map(|(i, x)| {
+		if idx.contains(&i) {
+			x.borrow_mut().matched = true;
+			n += 1;
+		} else {
+			x.borrow_mut().matched = false;
+		}
+	}).for_each(drop);
+	n
 }
 
 /// Create multiple paths from a `find`-like command output.
