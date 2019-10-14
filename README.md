@@ -7,13 +7,14 @@ A simple fuzzy finder written in Rust which displays results in tree format.
 TODO
 ----
 
-* Don't start a new command line at exit..
+* Don't start a newline at exit..
 * Implement ctrl+{w,u,y,left,right}
-* Refactor stdin matching into handlers on `Tui`?
-* Implement directory collapsing/expanding
+* Implement directory collapsing/expanding (use \` for this?)
+* By default directories are collapsed if they have over 10(?) children?
+* Allow setting find command / control keys via env vars / config file
+* Allow setting config file location via env var
 * Highlight matched text
 * Improve matching to include regexes
-* Cache match results as an LRU
 
 Example tree (used in tests):
 
