@@ -269,6 +269,7 @@ fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
 fn update_matched_idx(paths: &Vec<RcPath>, idx: &Vec<usize>) -> usize {
 	let mut n = 0;
 	paths.iter().enumerate().map(|(i, x)| {
+		// There's probably a more efficient way than using `contains`..
 		if idx.contains(&i) {
 			x.borrow_mut().matched = true;
 			n += 1;

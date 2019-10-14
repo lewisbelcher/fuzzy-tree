@@ -7,7 +7,6 @@ A simple fuzzy finder written in Rust which displays results in tree format.
 TODO
 ----
 
-* Don't start a newline at exit..
 * Implement ctrl+{w,u,y,left,right}
 * Implement directory collapsing/expanding (use \` for this?)
 * By default directories are collapsed if they have over 10(?) children?
