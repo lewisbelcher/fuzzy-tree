@@ -31,6 +31,9 @@ fn main() {
 					tree.flip_selected(ui.index());
 					ui.move_down();
 				} else if c == '\n' {
+					if tree.n_selected == 0 {
+						tree.flip_selected(ui.index());
+					}
 					ui.print_paths(&tree.paths);
 					break;
 				} else {
