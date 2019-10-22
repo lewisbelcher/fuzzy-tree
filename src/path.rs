@@ -4,14 +4,16 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::path;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use termion::color;
 
 pub type RcPath = Rc<RefCell<Path>>;
 
-lazy_static! {
-	static ref SELECTED: String =
-		format!("{}>{}", color::Fg(color::LightRed), color::Fg(color::Reset));
+#[derive(Eq, PartialEq)]
+enum Kind {
+	Directory,
+	File,
+	Link,
 }
 
 #[derive(Eq, PartialEq)]
@@ -21,6 +23,8 @@ pub struct Path {
 	pub selected: bool,
 	pub joined: String,
 	matched: bool,
+	kind: Kind,
+	open: bool,
 	children: Option<Vec<RcPath>>,
 }
 
@@ -67,6 +71,8 @@ impl Path {
 			joined: string,
 			selected: false,
 			matched: true,
+			kind: Kind::File,
+			open: true,
 			children: None,
 		}))
 	}
@@ -129,6 +135,7 @@ pub struct Tree {
 	pub n_matches: usize,
 	pub n_selected: usize,
 	cache: HashMap<String, Vec<usize>>, // Implement sized cache?
+	match_indices: Vec<usize>,
 }
 
 impl Tree {
@@ -144,17 +151,21 @@ impl Tree {
 			n_matches: n_paths,
 			n_selected: 0,
 			cache: HashMap::new(),
+			match_indices: (0..n_paths).collect(),
 		}
 	}
 
 	pub fn filter(&mut self, text: &str) {
-		self.n_matches = if let Some(idx) = self.cache.get(text) {
-			update_matched_idx(&self.paths, idx)
+		self.match_indices = if let Some(idx) = self.cache.get(text) {
+			update_matched_idx(&self.paths, idx);
+			idx.to_vec()
 		} else {
-			let n = update_matched(&self.paths, text);
-			self.cache.insert(text.to_string(), match_indices(&self.paths));
-			n
-		}
+			update_matched(&self.paths, text);
+			let idx = match_indices(&self.paths);
+			self.cache.insert(text.to_string(), idx.clone());
+			idx
+		};
+		self.n_matches = self.match_indices.len();
 	}
 
 	pub fn as_lines(&self) -> Vec<String> {
@@ -168,27 +179,22 @@ impl Tree {
 		)
 	}
 
+	/// Flip the `open` status of the `i`th matched path.
+	pub fn flip_open(&mut self, i: usize) {
+		let mut pth = self.paths[self.match_indices[i]].borrow_mut();
+		pth.open = !pth.open;
+	}
+
 	/// Flip the `selected` status of the `i`th matched path.
 	pub fn flip_selected(&mut self, i: usize) {
-		let mut matches = 0;
-
-		for pth in &self.paths {
-			let mut pth = pth.borrow_mut();
-			if pth.matched {
-				if matches == i {
-					if pth.selected {
-						pth.selected = false;
-						self.n_selected -= 1;
-					} else {
-						pth.selected = true;
-						self.n_selected += 1;
-					}
-					return;
-				}
-				matches += 1;
-			}
+		let mut pth = self.paths[self.match_indices[i]].borrow_mut();
+		if pth.selected {
+			pth.selected = false;
+			self.n_selected -= 1;
+		} else {
+			pth.selected = true;
+			self.n_selected += 1;
 		}
-		panic!("gulp");
 	}
 }
 
@@ -268,15 +274,19 @@ fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
 /// contained in `idx`.
 fn update_matched_idx(paths: &Vec<RcPath>, idx: &Vec<usize>) -> usize {
 	let mut n = 0;
-	paths.iter().enumerate().map(|(i, x)| {
-		// There's probably a more efficient way than using `contains`..
-		if idx.contains(&i) {
-			x.borrow_mut().matched = true;
-			n += 1;
-		} else {
-			x.borrow_mut().matched = false;
-		}
-	}).for_each(drop);
+	paths
+		.iter()
+		.enumerate()
+		.map(|(i, x)| {
+			// There's probably a more efficient way than using `contains`..
+			if idx.contains(&i) {
+				x.borrow_mut().matched = true;
+				n += 1;
+			} else {
+				x.borrow_mut().matched = false;
+			}
+		})
+		.for_each(drop);
 	n
 }
 
@@ -410,24 +420,32 @@ fn segments_to_string(segments: &Vec<Segment>) -> String {
 /// tree.
 fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) {
 	let sel = if node.borrow().selected {
+		lazy_static! {
+			static ref SELECTED: String =
+				format!("{}>{}", color::Fg(color::LightRed), color::Fg(color::Reset));
+		}
 		&SELECTED
 	} else {
 		" "
 	};
 
-	lines.push(sel.to_owned() + &segments_to_string(&segments) + node.basename());
+	let open = if node.borrow().open { "$ " } else { "_ " };
 
-	if let Some(children) = &node.borrow().children {
-		let children: Vec<&RcPath> = children.iter().filter(|x| x.borrow().matched).collect();
-		for (i, child) in children.iter().enumerate() {
-			let mut segments = segments.clone();
+	lines.push(sel.to_owned() + &segments_to_string(&segments) + open + node.basename());
 
-			segments.push(if i == children.len() - 1 {
-				Segment::End
-			} else {
-				Segment::Continuation
-			});
-			_tree_string(child, lines, segments);
+	if node.borrow().open {
+		if let Some(children) = &node.borrow().children {
+			let children: Vec<&RcPath> = children.iter().filter(|x| x.borrow().matched).collect();
+			for (i, child) in children.iter().enumerate() {
+				let mut segments = segments.clone();
+
+				segments.push(if i == children.len() - 1 {
+					Segment::End
+				} else {
+					Segment::Continuation
+				});
+				_tree_string(child, lines, segments);
+			}
 		}
 	}
 }
