@@ -96,6 +96,15 @@ impl Tui {
 		print!("{}", cursor::Goto(self.start_pos.0, self.start_pos.1));
 	}
 
+	pub fn info_line(&self) -> String {
+		format!(
+			"offset: {}, line_pos: {}, index: {}",
+			self.offset,
+			self.line_pos,
+			self.index()
+		)
+	}
+
 	fn print_input_line(&self) {
 		println_cleared(&format!("{}{}", self.prompt, &chars_to_str(&self.chars)));
 	}
@@ -127,8 +136,17 @@ impl Tui {
 	/// Move the current index down one. NB `render` must have previously been
 	/// called (this is how we know what the current maximum number of lines is).
 	pub fn move_down(&mut self) {
+		let current_lines = if let Some(current_lines) = self.current_lines {
+			if current_lines == 0 {
+				return;
+			}
+			current_lines
+		} else {
+			panic!("attempted movement before render");
+		};
+
 		let x = self.line_pos as usize;
-		if x + self.offset == self.current_lines.unwrap() - 1 {
+		if x + self.offset == current_lines - 1 {
 			// Do nout
 		} else if x == self.display_lines - 3 {
 			self.offset += 1;

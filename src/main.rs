@@ -58,7 +58,15 @@ fn main() {
 		if ui.chars_changed {
 			tree.filter(&ui.current_input());
 		}
-		ui.render(tree.info_line(), tree.as_lines());
+
+		let mut info_line = tree.info_line();
+
+		// TODO: only in debug mode
+		if false {
+			info_line += &ui.info_line();
+		}
+
+		ui.render(info_line, tree.as_lines());
 	}
 
 	ui.flush();
