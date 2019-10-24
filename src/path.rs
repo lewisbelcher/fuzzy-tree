@@ -179,22 +179,48 @@ impl Tree {
 		)
 	}
 
-	/// Flip the `open` status of the `i`th matched path.
+	fn ith(&self, mut idx: usize) -> &RcPath {
+		let mut i = 0;
+		loop {
+			let pth = &self.paths[i];
+			if i == idx {
+				return pth;
+			}
+			if pth.borrow().matched {
+				i += 1;
+			}
+			if !pth.borrow().open {
+				if let Some(children) = &pth.borrow().children {
+					idx += children.len();
+					i += children.len();
+				}
+			}
+		}
+	}
+
+	/// Flip the `open` status of the `i`th displayed path.
 	pub fn flip_open(&mut self, i: usize) {
-		let mut pth = self.paths[self.match_indices[i]].borrow_mut();
+		let mut pth = self.ith(i).borrow_mut();
 		pth.open = !pth.open;
 	}
 
-	/// Flip the `selected` status of the `i`th matched path.
+	/// Flip the `selected` status of the `i`th displayed path.
 	pub fn flip_selected(&mut self, i: usize) {
-		let mut pth = self.paths[self.match_indices[i]].borrow_mut();
-		if pth.selected {
-			pth.selected = false;
-			self.n_selected -= 1;
-		} else {
-			pth.selected = true;
-			self.n_selected += 1;
+		{
+			let mut pth = self.ith(i).borrow_mut();
+			pth.selected = !pth.selected;
 		}
+
+		let mut n_selected = 0;
+		self.paths
+			.iter()
+			.map(|p| {
+				if p.borrow().selected {
+					n_selected += 1
+				}
+			})
+			.for_each(drop);
+		self.n_selected = n_selected;
 	}
 }
 
