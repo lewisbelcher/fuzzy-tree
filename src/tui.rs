@@ -1,3 +1,4 @@
+use crate::config;
 use crate::path;
 use std::cmp;
 use std::io::{self, Write};
@@ -227,11 +228,15 @@ impl Tui {
 		}
 
 		self.current_lines = Some(path_lines.len());
-		self.goto_start();
+		if !config::debug() {
+			self.goto_start();
+		}
 		self.print_input_line();
 		print_info_line(info_line);
 		self.print_body(path_lines);
-		self.return_cursor();
+		if !config::debug() {
+			self.return_cursor();
+		}
 		self.flush();
 	}
 

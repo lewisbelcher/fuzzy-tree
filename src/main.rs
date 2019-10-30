@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
+pub mod config;
 pub mod path;
 pub mod tui;
 use std::process::Command;
@@ -60,9 +61,7 @@ fn main() {
 		}
 
 		let mut info_line = tree.info_line();
-
-		// TODO: only in debug mode
-		if false {
+		if config::debug() {
 			info_line += &ui.info_line();
 		}
 

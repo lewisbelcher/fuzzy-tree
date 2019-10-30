@@ -179,19 +179,20 @@ impl Tree {
 		)
 	}
 
-	fn ith(&self, mut idx: usize) -> &RcPath {
+	fn ith(&self, mut target: usize) -> &RcPath {
 		let mut i = 0;
 		loop {
 			let pth = &self.paths[i];
-			if i == idx {
+			if !pth.borrow().matched {
+				target += 1;
+			}
+			if i == target {
 				return pth;
 			}
-			if pth.borrow().matched {
-				i += 1;
-			}
+			i += 1;
 			if !pth.borrow().open {
 				if let Some(children) = &pth.borrow().children {
-					idx += children.len();
+					target += children.len();
 					i += children.len();
 				}
 			}
