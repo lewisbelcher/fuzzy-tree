@@ -44,7 +44,14 @@ fn main() {
 					ui.insert_char(c);
 				}
 			}
-			Key::Ctrl(_c) => {}
+			Key::Ctrl(c) => {
+				// TODO: ctrl-arrow is not supported?
+				match c {
+					'u' => ui.stash(),
+					'y' => ui.pop(),
+					_ => {}
+				}
+			}
 			Key::Left => ui.move_left(),
 			Key::Right => ui.move_right(),
 			Key::Up => ui.move_up(),

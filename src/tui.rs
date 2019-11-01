@@ -60,6 +60,7 @@ pub struct Tui {
 	display_lines: usize,
 	offset: usize, // TODO: Keep these in a TuiState?
 	chars: Vec<char>,
+	stash: Vec<char>,
 	pub chars_changed: bool,
 	curs_pos: u16,
 	line_pos: u16,
@@ -86,6 +87,7 @@ impl Tui {
 			line_pos: 0,
 			offset: 0,
 			chars: Vec::new(),
+			stash: Vec::new(),
 			chars_changed: false,
 			prompt,
 			display_lines,
@@ -166,6 +168,36 @@ impl Tui {
 		if (self.curs_pos as usize) < self.chars.len() {
 			self.curs_pos += 1;
 		}
+	}
+
+	pub fn move_left_word(&mut self) {
+		let curs_pos = self.curs_pos as usize;
+		if self.curs_pos > 0 {
+			for i in 0..curs_pos {
+				if self.chars[curs_pos - i] == ' ' {
+					self.curs_pos = i as u16;
+					break;
+				}
+			}
+		}
+	}
+
+	pub fn stash(&mut self) {
+		let (stash, chars) = self.chars.split_at(self.curs_pos as usize);
+		self.stash = stash.to_vec();
+		self.chars = chars.to_vec();
+		self.curs_pos = 0;
+	}
+
+	pub fn pop(&mut self) {
+		let curs_pos = self.curs_pos as usize;
+		self.curs_pos += self.stash.len() as u16;
+		self.chars = [
+			&self.chars[..curs_pos],
+			&self.stash[..],
+			&self.chars[curs_pos..],
+		]
+		.concat();
 	}
 
 	pub fn home(&mut self) {
