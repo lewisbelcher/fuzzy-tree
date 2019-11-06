@@ -182,11 +182,45 @@ impl Tui {
 		}
 	}
 
+	pub fn word_stash(&mut self) {
+		if self.curs_pos < 1 {
+			return;
+		}
+
+		let mut curs_pos = (self.curs_pos as usize) - 1;
+		let mut popped = Vec::new();
+		let mut seen_char = false;
+
+		// TODO: Clean this up
+		loop {
+			if self.chars[curs_pos] == ' ' && seen_char {
+				curs_pos += 1;
+				break;
+			}
+			let c = self.chars.remove(curs_pos);
+			if c != ' ' {
+				seen_char = true;
+			}
+
+			popped.push(c);
+			curs_pos -= 1;
+			if curs_pos == 0 {
+				popped.push(self.chars.remove(curs_pos));
+				break;
+			}
+		}
+		self.chars_changed = true;
+		popped.reverse();
+		self.stash = popped;
+		self.curs_pos = curs_pos as u16;
+	}
+
 	pub fn stash(&mut self) {
 		let (stash, chars) = self.chars.split_at(self.curs_pos as usize);
 		self.stash = stash.to_vec();
 		self.chars = chars.to_vec();
 		self.curs_pos = 0;
+		self.chars_changed = true;
 	}
 
 	pub fn pop(&mut self) {

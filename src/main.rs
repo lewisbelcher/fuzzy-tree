@@ -3,7 +3,7 @@ extern crate lazy_static;
 pub mod config;
 pub mod path;
 pub mod tui;
-use std::process::Command;
+use std::process::{self, Command};
 use termion::color;
 use termion::event::Key;
 
@@ -47,7 +47,9 @@ fn main() {
 			Key::Ctrl(c) => {
 				// TODO: ctrl-arrow is not supported?
 				match c {
+					'c' => process::exit(130), // TODO: Fix bad rendering after this
 					'u' => ui.stash(),
+					'w' => ui.word_stash(),
 					'y' => ui.pop(),
 					_ => {}
 				}
