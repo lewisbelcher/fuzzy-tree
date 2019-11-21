@@ -286,11 +286,10 @@ impl Tui {
 	}
 
 	pub fn render(&mut self, info_line: String, path_lines: Vec<String>) {
-		if self.chars_changed {
+		if self.chars_changed && self.index() > path_lines.len() {
 			self.adjust_offset(path_lines.len());
 			let x = cmp::max(1, path_lines.len()) - 1;
 			self.line_pos = cmp::min(self.line_pos, x as u16);
-			self.offset = cmp::min(self.offset, x)
 		}
 
 		self.current_lines = Some(path_lines.len());
