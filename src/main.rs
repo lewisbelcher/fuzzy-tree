@@ -18,9 +18,10 @@ fn main() {
 	let mut tree = path::Tree::from_stdout(stdout);
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
-	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES);
+	let lines = tree.as_lines();
+	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES, lines.len());
 
-	ui.render(tree.info_line(), tree.as_lines());
+	ui.render(tree.info_line(), lines);
 
 	for c in tui::iter_keys() {
 		ui.chars_changed = false;
@@ -58,6 +59,8 @@ fn main() {
 			Key::Right => ui.move_right(),
 			Key::Up => ui.move_up(),
 			Key::Down => ui.move_down(),
+			Key::PageUp => ui.page_up(),
+			Key::PageDown => ui.page_down(),
 			Key::Backspace => ui.backspace(),
 			Key::Delete => ui.delete(),
 			Key::Home => ui.home(),

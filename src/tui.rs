@@ -64,11 +64,11 @@ pub struct Tui {
 	pub chars_changed: bool,
 	curs_pos: u16,
 	line_pos: u16,
-	current_lines: Option<usize>,
+	current_lines: usize,
 }
 
 impl Tui {
-	pub fn new(prompt: String, display_lines: usize) -> Self {
+	pub fn new(prompt: String, display_lines: usize, current_lines: usize) -> Self {
 		let mut stdout = io::stdout().into_raw_mode().unwrap();
 		let mut start_pos = stdout.cursor_pos().unwrap();
 
@@ -91,7 +91,7 @@ impl Tui {
 			chars_changed: false,
 			prompt,
 			display_lines,
-			current_lines: None,
+			current_lines,
 		}
 	}
 
@@ -139,17 +139,12 @@ impl Tui {
 	/// Move the current index down one. NB `render` must have previously been
 	/// called (this is how we know what the current maximum number of lines is).
 	pub fn move_down(&mut self) {
-		let current_lines = if let Some(current_lines) = self.current_lines {
-			if current_lines == 0 {
-				return;
-			}
-			current_lines
-		} else {
-			panic!("attempted movement before render");
-		};
+		if self.current_lines == 0 {
+			return;
+		}
 
 		let x = self.line_pos as usize;
-		if x + self.offset == current_lines - 1 {
+		if x + self.offset == self.current_lines - 1 {
 			// Do nout
 		} else if x == self.display_lines - 3 {
 			self.offset += 1;
@@ -157,6 +152,20 @@ impl Tui {
 			self.line_pos += 1;
 		}
 	}
+
+	pub fn page_up(&mut self) {
+		if self.offset >= self.display_lines {
+			self.offset -= self.display_lines;
+		} else {
+			if self.offset == 0 {
+				self.line_pos = 0;
+			} else {
+				self.offset = 0;
+			}
+		}
+	}
+
+	pub fn page_down(&mut self) {}
 
 	pub fn move_left(&mut self) {
 		if self.curs_pos > 0 {
@@ -278,9 +287,8 @@ impl Tui {
 	}
 
 	fn adjust_offset(&mut self, new_len: usize) {
-		let current_lines = self.current_lines.unwrap();
-		if new_len < current_lines {
-			let diff = cmp::min(self.offset, current_lines - new_len);
+		if new_len < self.current_lines {
+			let diff = cmp::min(self.offset, self.current_lines - new_len);
 			self.offset -= diff;
 		}
 	}
@@ -292,7 +300,7 @@ impl Tui {
 			self.line_pos = cmp::min(self.line_pos, x as u16);
 		}
 
-		self.current_lines = Some(path_lines.len());
+		self.current_lines = path_lines.len();
 		if !config::debug() {
 			self.goto_start();
 		}
