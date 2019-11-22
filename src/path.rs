@@ -100,6 +100,7 @@ pub trait PathBehaviour {
 	fn is_child_of(&self, other: &RcPath) -> bool;
 	fn basename(&self) -> &str;
 	fn len(&self) -> usize;
+	fn n_descendants(&self) -> usize;
 }
 
 impl PathBehaviour for RcPath {
@@ -125,6 +126,16 @@ impl PathBehaviour for RcPath {
 
 	fn len(&self) -> usize {
 		self.borrow().components.len()
+	}
+
+	fn n_descendants(&self) -> usize {
+		let mut i = 0;
+		if let Some(children) = &self.borrow().children {
+			for child in children.iter() {
+				i += child.n_descendants() + 1;
+			}
+		}
+		i
 	}
 }
 
@@ -191,10 +202,7 @@ impl Tree {
 			}
 			i += 1;
 			if !pth.borrow().open {
-				if let Some(children) = &pth.borrow().children {
-					target += children.len();
-					i += children.len();
-				}
+				target += pth.n_descendants();
 			}
 		}
 	}
