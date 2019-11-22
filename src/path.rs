@@ -3,29 +3,26 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
+use std::fs;
 use std::path;
 use std::rc::Rc;
 use termion::color;
 
 pub type RcPath = Rc<RefCell<Path>>;
 
-#[derive(Eq, PartialEq)]
-enum Kind {
-	Directory,
-	File,
-	Link,
-}
+const DIR_OPEN: &str = "_ ";
+const DIR_CLOSED: &str = "$ ";
 
 #[derive(Eq, PartialEq)]
 pub struct Path {
-	parent: Option<RcPath>,
 	components: Vec<String>,
+	parent: Option<RcPath>,
+	children: Option<Vec<RcPath>>,
+	is_dir: bool,
+	open: bool,
+	matched: bool,
 	pub selected: bool,
 	pub joined: String,
-	matched: bool,
-	kind: Kind,
-	open: bool,
-	children: Option<Vec<RcPath>>,
 }
 
 impl fmt::Debug for Path {
@@ -62,6 +59,7 @@ impl PartialOrd for Path {
 
 impl Path {
 	pub fn new(string: String) -> RcPath {
+		let is_dir = fs::metadata(&string).unwrap().is_dir();
 		Rc::new(RefCell::new(Path {
 			parent: None,
 			components: string
@@ -71,7 +69,7 @@ impl Path {
 			joined: string,
 			selected: false,
 			matched: true,
-			kind: Kind::File,
+			is_dir,
 			open: true,
 			children: None,
 		}))
@@ -190,6 +188,7 @@ impl Tree {
 		)
 	}
 
+	/// Get the i'th visible path
 	fn ith(&self, mut target: usize) -> &RcPath {
 		let mut i = 0;
 		loop {
@@ -464,9 +463,17 @@ fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) 
 		" "
 	};
 
-	let open = if node.borrow().open { "$ " } else { "_ " };
+	let prefix = if node.borrow().is_dir {
+		if node.borrow().open {
+			DIR_OPEN
+		} else {
+			DIR_CLOSED
+		}
+	} else {
+		""
+	};
 
-	lines.push(sel.to_owned() + &segments_to_string(&segments) + open + node.basename());
+	lines.push(sel.to_owned() + &segments_to_string(&segments) + prefix + node.basename());
 
 	if node.borrow().open {
 		if let Some(children) = &node.borrow().children {
