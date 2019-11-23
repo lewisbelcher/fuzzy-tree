@@ -10,8 +10,8 @@ use termion::color;
 
 pub type RcPath = Rc<RefCell<Path>>;
 
-const DIR_OPEN: &str = "_ ";
-const DIR_CLOSED: &str = "$ ";
+const DIR_OPEN: &str = "  ";
+const DIR_CLOSED: &str = "  ";
 
 #[derive(Eq, PartialEq)]
 pub struct Path {
