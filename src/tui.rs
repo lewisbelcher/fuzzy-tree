@@ -165,7 +165,19 @@ impl Tui {
 		}
 	}
 
-	pub fn page_down(&mut self) {}
+	pub fn page_down(&mut self) {
+		if self.current_lines <= self.offset + self.display_lines {
+			self.offset = self.current_lines - 1;
+			self.line_pos = 0;
+		} else {
+			self.offset += self.display_lines;
+
+			if self.index() >= self.current_lines {
+				let diff = (self.index() - self.current_lines + 1) as u16;
+				self.line_pos -= cmp::min(self.line_pos, diff);
+			}
+		}
+	}
 
 	pub fn move_left(&mut self) {
 		if self.curs_pos > 0 {
