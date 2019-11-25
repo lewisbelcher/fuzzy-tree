@@ -58,15 +58,14 @@ impl PartialOrd for Path {
 }
 
 impl Path {
-	pub fn new(string: String) -> RcPath {
-		let is_dir = fs::metadata(&string).unwrap().is_dir();
+	pub fn new(pathname: String, is_dir: bool) -> RcPath {
 		Rc::new(RefCell::new(Path {
 			parent: None,
-			components: string
+			components: pathname
 				.split(path::MAIN_SEPARATOR)
 				.map(|x| x.to_string())
 				.collect(),
-			joined: string,
+			joined: pathname,
 			selected: false,
 			matched: true,
 			is_dir,
@@ -75,8 +74,8 @@ impl Path {
 		}))
 	}
 
-	pub fn from(string: &str) -> RcPath {
-		Path::new(string.to_string())
+	pub fn from(pathname: &str, is_dir: bool) -> RcPath {
+		Path::new(pathname.to_string(), is_dir)
 	}
 }
 
@@ -90,8 +89,8 @@ fn add(child: &RcPath, parent: &RcPath) {
 	child.borrow_mut().parent = Some(Rc::clone(parent));
 }
 
-/// Since `Path`s are wrapped in `Rc`s which cannot be implemented on directly,
-/// functionality has to be implemented via trait.
+// Since `Path`s are wrapped in `Rc`s which cannot be implemented on directly,
+// functionality is implemented via a trait.
 pub trait PathBehaviour {
 	fn add_child(&self, child: &RcPath);
 	fn add_parent(&self, parent: &RcPath);
@@ -199,10 +198,10 @@ impl Tree {
 			if i == target {
 				return pth;
 			}
-			i += 1;
 			if !pth.borrow().open {
 				target += pth.n_descendants();
 			}
+			i += 1;
 		}
 	}
 
@@ -330,7 +329,7 @@ pub fn create_paths(string: Vec<u8>) -> Vec<RcPath> {
 		.unwrap()
 		.split('\n')
 		.filter(|x| !x.is_empty())
-		.map(|x| Path::from(x))
+		.map(|x| Path::from(x, fs::metadata(&x).unwrap().is_dir()))
 		.collect();
 
 	paths.sort();
@@ -339,7 +338,7 @@ pub fn create_paths(string: Vec<u8>) -> Vec<RcPath> {
 	for p in &mut paths {
 		p.borrow_mut().components.insert(0, ".".to_string());
 	}
-	paths.insert(0, Path::from("."));
+	paths.insert(0, Path::from(".", true));
 
 	paths
 }
@@ -512,7 +511,8 @@ mod test {
 			{
 				let mut temp = Vec::new();
 				$(
-					temp.push(Path::from($x));
+					let is_dir = $x.matches('.').collect::<Vec<_>>().len() > 1;
+					temp.push(Path::from($x, is_dir));
 				)*
 				temp
 			}
@@ -524,16 +524,16 @@ mod test {
 		let mut path1;
 		let mut path2;
 
-		path1 = Path::from("here/is/a/path.c");
-		path2 = Path::from("here/is/a/path.c");
+		path1 = Path::from("here/is/a/path.c", false);
+		path2 = Path::from("here/is/a/path.c", false);
 		assert_eq!(path1, path2);
 
-		path1 = Path::from("here/is/a");
-		path2 = Path::from("here/is/a/path.c");
+		path1 = Path::from("here/is/a", false);
+		path2 = Path::from("here/is/a/path.c", false);
 		assert!(path1 < path2);
 
-		path1 = Path::from("here/is/a/fath.c");
-		path2 = Path::from("here/is/a/path.c");
+		path1 = Path::from("here/is/a/fath.c", false);
+		path2 = Path::from("here/is/a/path.c", false);
 		assert!(path1 < path2);
 
 		let mut paths = paths!["src", "tmp", "src/main.rs"];
@@ -545,29 +545,29 @@ mod test {
 	#[test]
 	fn len_correct() {
 		let s = "here/is/a/path.c";
-		let path = Path::from(s);
+		let path = Path::from(s, false);
 		assert_eq!(path.len(), 4);
 	}
 
 	#[test]
 	fn basename_correct() {
 		let s = "here/is/a/path.c";
-		let path = Path::from(s);
+		let path = Path::from(s, false);
 		assert_eq!(path.basename(), "path.c");
 	}
 
 	#[test]
 	fn is_child_of_correctness() {
-		let mut p1 = Path::from("A");
-		let mut p2 = Path::from("B");
+		let mut p1 = Path::from("A", false);
+		let mut p2 = Path::from("B", false);
 		assert!(!p1.is_child_of(&p2));
 
-		p1 = Path::from("src/bayes");
-		p2 = Path::from("src/bayes/blend.c");
+		p1 = Path::from("src/bayes", true);
+		p2 = Path::from("src/bayes/blend.c", false);
 		assert!(!p1.is_child_of(&p2));
 
-		p1 = Path::from("src/bayes");
-		p2 = Path::from("src/bayes/blend.c");
+		p1 = Path::from("src/bayes", true);
+		p2 = Path::from("src/bayes/blend.c", false);
 		assert!(p2.is_child_of(&p1));
 	}
 
@@ -727,5 +727,13 @@ mod test {
 		let response = tree_string(&tree, n_matches);
 		let expected: Vec<String> = vec![];
 		assert_eq!(response, expected);
+	}
+
+	#[test]
+	fn correct_n_descendants() {
+		let paths = create_test_paths();
+		let tree = create_test_tree(&paths);
+		assert_eq!(tree.n_descendants(), 10);
+		assert_eq!(paths[3].n_descendants(), 6);
 	}
 }
