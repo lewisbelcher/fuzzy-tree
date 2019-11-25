@@ -513,7 +513,7 @@ mod test {
 			{
 				let mut temp = Vec::new();
 				$(
-					let is_dir = $x.matches('.').collect::<Vec<_>>().len() > 1;
+					let is_dir = $x.matches('.').collect::<Vec<_>>().len() == 1;
 					temp.push(Path::from($x, is_dir));
 				)*
 				temp
@@ -642,17 +642,17 @@ mod test {
 		let tree = create_test_tree(&paths);
 		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
-			" $ .",
-			" ├── $ A",
-			" ├── $ B",
-			" ├── $ src",
-			" │   ├── $ bayes",
-			" │   │   ├── $ blend.c",
-			" │   │   └── $ rand.c",
-			" │   └── $ cakes",
-			" │       ├── $ a.c",
-			" │       └── $ b.c",
-			" └── $ x.txt",
+			"   .",
+			" ├──   A",
+			" ├──   B",
+			" ├──   src",
+			" │   ├──   bayes",
+			" │   │   ├── blend.c",
+			" │   │   └── rand.c",
+			" │   └──   cakes",
+			" │       ├── a.c",
+			" │       └── b.c",
+			" └── x.txt",
 		];
 		assert_eq!(lines, expected);
 
@@ -660,14 +660,14 @@ mod test {
 		paths[4].borrow_mut().matched = false;
 		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
-			" $ .",
-			" ├── $ A",
-			" ├── $ B",
-			" ├── $ src",
-			" │   └── $ cakes",
-			" │       ├── $ a.c",
-			" │       └── $ b.c",
-			" └── $ x.txt",
+			"   .",
+			" ├──   A",
+			" ├──   B",
+			" ├──   src",
+			" │   └──   cakes",
+			" │       ├── a.c",
+			" │       └── b.c",
+			" └── x.txt",
 		];
 		assert_eq!(lines, expected);
 	}
@@ -679,13 +679,13 @@ mod test {
 		let n_matches = update_matched(&paths, "b");
 		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
-			" $ .",
-			" └── $ src",
-			"     ├── $ bayes",
-			"     │   ├── $ blend.c",
-			"     │   └── $ rand.c",
-			"     └── $ cakes",
-			"         └── $ b.c",
+			"   .",
+			" └──   src",
+			"     ├──   bayes",
+			"     │   ├── blend.c",
+			"     │   └── rand.c",
+			"     └──   cakes",
+			"         └── b.c",
 		];
 		assert_eq!(n_matches, expected.len());
 		assert_eq!(lines, expected);
