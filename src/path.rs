@@ -199,7 +199,9 @@ impl Tree {
 				return pth;
 			}
 			if !pth.borrow().open {
-				target += pth.n_descendants();
+				let n_descendants = pth.n_descendants();
+				target += n_descendants;
+				i += n_descendants;
 			}
 			i += 1;
 		}
