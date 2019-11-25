@@ -3,6 +3,7 @@ extern crate lazy_static;
 pub mod config;
 pub mod path;
 pub mod tui;
+use std::env;
 use std::process::{self, Command};
 use termion::color;
 use termion::event::Key;
@@ -10,7 +11,10 @@ use termion::event::Key;
 const DISPLAY_LINES: usize = 10;
 
 fn main() {
+	let args = env::args().skip(1).collect::<Vec<_>>();
+
 	let stdout = Command::new("fd")
+		.args(&args)
 		.output()
 		.expect("Failed to execute command `fd`")
 		.stdout;
