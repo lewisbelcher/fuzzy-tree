@@ -21,6 +21,7 @@ pub struct Path {
 	is_dir: bool,
 	open: bool,
 	matched: bool,
+	match_text: String,
 	pub selected: bool,
 	pub joined: String,
 }
@@ -59,6 +60,7 @@ impl PartialOrd for Path {
 
 impl Path {
 	pub fn new(pathname: String, is_dir: bool) -> RcPath {
+		let match_text = pathname.clone();
 		Rc::new(RefCell::new(Path {
 			parent: None,
 			components: pathname
@@ -68,6 +70,7 @@ impl Path {
 			joined: pathname,
 			selected: false,
 			matched: true,
+			match_text,
 			is_dir,
 			open: true,
 			children: None,
@@ -101,6 +104,9 @@ pub trait PathBehaviour {
 }
 
 impl PathBehaviour for RcPath {
+	// TODO: Also add helper methods for borrow of `matched`, `selected`, `children`
+	// etc.. This could be done with a macro?
+
 	fn add_child(&self, child: &RcPath) {
 		add(child, self);
 	}
@@ -303,6 +309,68 @@ fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
 		}
 	}
 	matched
+}
+
+/// Reduce a vector of patterns to contain only elements which are disjoint
+fn reduce_patterns<'a>(patterns: &Vec<&'a str>) -> Vec<&'a str> {
+	let mut rm = Vec::new();
+
+	for (i, pat1) in patterns.iter().enumerate() {
+		for pat2 in patterns {
+			if pat1 == pat2 {
+				// skip
+			} else if pat2.contains(pat1) {
+				rm.push(i);
+			}
+		}
+	}
+
+	patterns
+		.iter()
+		.enumerate()
+		.filter_map(|(i, x)| if rm.contains(&i) { None } else { Some(*x) })
+		.collect()
+}
+
+/// Works under the assumption that all patterns are disjoint patterns. Use
+/// `reduce_patterns` to ensure this.
+fn matchfn(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
+	let mut seen = Vec::new();
+
+	// TODO: Lazy static these
+	let blue = format!("{}", color::Fg(color::LightBlue));
+	let reset = format!("{}", color::Fg(color::Reset));
+	let n = blue.len() + reset.len();
+
+	for path in paths {
+		let mut match_text = path.borrow().joined.clone();
+		let mut matched = false;
+
+		for pattern in patterns {
+			// TODO: Abstract the match function to implement a trait and use this
+			// in reduce_patterns too.
+			for (i, (idx, _)) in path.borrow().joined.match_indices(pattern).enumerate() {
+				matched = true;
+				let mut new = String::with_capacity(match_text.len() + n);
+				let adjusted = idx + i * n;
+
+				for (j, c) in match_text.chars().enumerate() {
+					if j == adjusted {
+						new.push_str(&blue);
+					} else if j == adjusted + pattern.len() {
+						new.push_str(&reset);
+					}
+					new.push(c);
+				}
+				match_text = new;
+			}
+		}
+		if matched {
+			match_stack(path, &mut seen);
+		}
+		println!("{}", &match_text);
+		path.borrow_mut().match_text = match_text;
+	}
 }
 
 /// Update the matched field of `paths` based on whether their index is
@@ -737,5 +805,25 @@ mod test {
 		let tree = create_test_tree(&paths);
 		assert_eq!(tree.n_descendants(), 10);
 		assert_eq!(paths[3].n_descendants(), 6);
+	}
+
+	#[test]
+	fn reducing_patterns() {
+		assert_eq!(reduce_patterns(&vec!["abc", "def"]), vec!["abc", "def"]);
+		assert_eq!(reduce_patterns(&vec!["abc", "abc"]), vec!["abc"]);
+		assert_eq!(reduce_patterns(&vec!["aaa", "aaaa", "a"]), vec!["aaaa"]);
+		assert_eq!(reduce_patterns(&vec!["apa", "aaaa", "a"]), vec!["apa", "aaaa"]);
+	}
+
+	#[test]
+	fn new_matching() {
+		let paths = vec![
+			Path::new("this/is/aaaa/paath.txt".to_string(), false),
+			Path::new("this/is/aaa/paath.txt".to_string(), false),
+		];
+		matchfn(&paths, &vec!["aaa", "this"]);
+		matchfn(&paths, &vec!["pac", "paath"]);
+		assert!(paths[0].borrow().matched);
+		assert!(paths[1].borrow().matched);
 	}
 }
