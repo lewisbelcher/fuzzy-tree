@@ -325,11 +325,14 @@ fn reduce_patterns<'a>(patterns: &Vec<&'a str>) -> Vec<&'a str> {
 		}
 	}
 
-	patterns
+	let mut patterns = patterns
 		.iter()
 		.enumerate()
 		.filter_map(|(i, x)| if rm.contains(&i) { None } else { Some(*x) })
-		.collect()
+		.collect::<Vec<&str>>();
+	patterns.sort();
+	patterns.dedup();
+	patterns
 }
 
 /// Works under the assumption that all patterns are disjoint patterns. Use
@@ -338,6 +341,9 @@ fn matchfn(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
 	let mut seen = Vec::new();
 
 	// TODO: Lazy static these
+	// TODO: If a parent matches then we include all children in the match?!?
+	// TODO: Can we get away with only matching on basename?
+	// TODO: Can we get away with only creating a colored basename?
 	let blue = format!("{}", color::Fg(color::LightBlue));
 	let reset = format!("{}", color::Fg(color::Reset));
 	let n = blue.len() + reset.len();
@@ -812,7 +818,7 @@ mod test {
 		assert_eq!(reduce_patterns(&vec!["abc", "def"]), vec!["abc", "def"]);
 		assert_eq!(reduce_patterns(&vec!["abc", "abc"]), vec!["abc"]);
 		assert_eq!(reduce_patterns(&vec!["aaa", "aaaa", "a"]), vec!["aaaa"]);
-		assert_eq!(reduce_patterns(&vec!["apa", "aaaa", "a"]), vec!["apa", "aaaa"]);
+		assert_eq!(reduce_patterns(&vec!["apa", "aaaa", "a"]), vec!["aaaa", "apa"]);
 	}
 
 	#[test]
