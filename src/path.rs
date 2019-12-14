@@ -1,7 +1,6 @@
 use log::debug;
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path;
@@ -12,6 +11,9 @@ pub type RcPath = Rc<RefCell<Path>>;
 
 const DIR_OPEN: &str = "  ";
 const DIR_CLOSED: &str = "  ";
+const BLUE: &str = "\u{1b}[38;5;12m";
+const RESET: &str = "\u{1b}[39m";
+const COLOR_WRAP_LEN: usize = 15;
 
 #[derive(Eq, PartialEq)]
 pub struct Path {
@@ -21,6 +23,7 @@ pub struct Path {
 	is_dir: bool,
 	open: bool,
 	matched: bool,
+	match_text: String,
 	pub selected: bool,
 	pub joined: String,
 }
@@ -59,15 +62,19 @@ impl PartialOrd for Path {
 
 impl Path {
 	pub fn new(pathname: String, is_dir: bool) -> RcPath {
+		let components: Vec<String> = pathname
+			.split(path::MAIN_SEPARATOR)
+			.map(|x| x.to_string())
+			.collect();
+		let match_text = components[components.len() - 1].clone();
+
 		Rc::new(RefCell::new(Path {
 			parent: None,
-			components: pathname
-				.split(path::MAIN_SEPARATOR)
-				.map(|x| x.to_string())
-				.collect(),
+			components,
 			joined: pathname,
 			selected: false,
 			matched: true,
+			match_text,
 			is_dir,
 			open: true,
 			children: None,
@@ -101,6 +108,9 @@ pub trait PathBehaviour {
 }
 
 impl PathBehaviour for RcPath {
+	// TODO: Also add helper methods for borrow of `matched`, `selected`, `children`
+	// etc.. This could be done with a macro?
+
 	fn add_child(&self, child: &RcPath) {
 		add(child, self);
 	}
@@ -142,13 +152,15 @@ pub struct Tree {
 	pub n_paths: usize,
 	pub n_matches: usize,
 	pub n_selected: usize,
-	cache: HashMap<String, Vec<usize>>, // Implement sized cache?
-	match_indices: Vec<usize>,
 }
 
 impl Tree {
 	pub fn from_stdout(stdout: Vec<u8>) -> Self {
 		let paths = create_paths(stdout);
+		Self::from_paths(paths)
+	}
+
+	pub fn from_paths(paths: Vec<RcPath>) -> Self {
 		let tree = create_tree(&paths);
 		let n_paths = paths.len();
 
@@ -158,22 +170,37 @@ impl Tree {
 			n_paths,
 			n_matches: n_paths,
 			n_selected: 0,
-			cache: HashMap::new(),
-			match_indices: (0..n_paths).collect(),
+		}
+	}
+
+	fn reset_matched(&self, value: bool) {
+		for path in &self.paths {
+			let basename = path.basename().to_string();
+			let mut pth = path.borrow_mut();
+			pth.matched = value;
+			pth.match_text = basename;
 		}
 	}
 
 	pub fn filter(&mut self, text: &str) {
-		self.match_indices = if let Some(idx) = self.cache.get(text) {
-			update_matched_idx(&self.paths, idx);
-			idx.to_vec()
+		if text.is_empty() {
+			self.reset_matched(true);
+			self.n_matches = self.paths.len();
 		} else {
-			update_matched(&self.paths, text);
-			let idx = match_indices(&self.paths);
-			self.cache.insert(text.to_string(), idx.clone());
-			idx
-		};
-		self.n_matches = self.match_indices.len();
+			self.reset_matched(false);
+			let patterns: Vec<&str> = text.split(" ").filter(|x| !x.is_empty()).collect();
+			let patterns = reduce_patterns(&patterns);
+			matchfn(&self.paths, &patterns);
+			self.n_matches = self.calc_n_matches();
+		}
+	}
+
+	fn calc_n_matches(&self) -> usize {
+		self.paths
+			.iter()
+			.filter(|p| p.borrow().matched)
+			.collect::<Vec<_>>()
+			.len()
 	}
 
 	pub fn as_lines(&self) -> Vec<String> {
@@ -233,22 +260,6 @@ impl Tree {
 	}
 }
 
-fn _match(pth: &RcPath, pattern: &str) -> bool {
-	let split: Vec<&str> = pattern.split(" ").filter(|x| !x.is_empty()).collect();
-	let mut matched;
-
-	for s in split {
-		matched = false;
-		for c in &pth.borrow().components {
-			matched |= c.contains(s);
-		}
-		if !matched {
-			return false;
-		}
-	}
-	true
-}
-
 // TODO: Should be able to use node directly instead of a clone of the
 // joined path....
 fn push_seen(seen: &mut Vec<String>, node: &RcPath) -> bool {
@@ -276,53 +287,89 @@ fn match_stack(node: &RcPath, seen: &mut Vec<String>) -> usize {
 	return n;
 }
 
-fn match_indices(paths: &Vec<RcPath>) -> Vec<usize> {
-	let mut idx = Vec::new();
-	paths
-		.iter()
-		.enumerate()
-		.map(|(i, x)| {
-			if x.borrow().matched {
-				idx.push(i);
+/// Reduce a vector of patterns to contain only elements which are disjoint
+fn reduce_patterns<'a>(patterns: &Vec<&'a str>) -> Vec<&'a str> {
+	let mut rm = Vec::new();
+
+	for (i, pat1) in patterns.iter().enumerate() {
+		for pat2 in patterns {
+			if pat1 == pat2 {
+				// skip
+			} else if pat2.contains(pat1) {
+				rm.push(i);
 			}
-		})
-		.for_each(drop);
-	idx
-}
-
-/// Update which paths are matched by `pattern`.
-fn update_matched(paths: &Vec<RcPath>, pattern: &str) -> usize {
-	let mut seen = Vec::new();
-
-	let mut matched = 0;
-	for pth in paths {
-		if _match(pth, pattern) {
-			matched += match_stack(pth, &mut seen);
-		} else {
-			pth.borrow_mut().matched = false;
 		}
 	}
-	matched
-}
 
-/// Update the matched field of `paths` based on whether their index is
-/// contained in `idx`.
-fn update_matched_idx(paths: &Vec<RcPath>, idx: &Vec<usize>) -> usize {
-	let mut n = 0;
-	paths
+	let mut patterns = patterns
 		.iter()
 		.enumerate()
-		.map(|(i, x)| {
-			// There's probably a more efficient way than using `contains`..
-			if idx.contains(&i) {
-				x.borrow_mut().matched = true;
-				n += 1;
+		.filter_map(|(i, x)| if rm.contains(&i) { None } else { Some(*x) })
+		.collect::<Vec<&str>>();
+	patterns.sort();
+	patterns.dedup();
+	patterns
+}
+
+/// Works under the assumption that all patterns are disjoint patterns. Use
+/// `reduce_patterns` to ensure this.
+fn matchfn(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
+	let mut seen = Vec::new();
+
+	for path in paths {
+		let matched;
+		{
+			let joined = &path.borrow().joined;
+			// Total match:
+			matched = patterns.iter().all(|pat| joined.contains(pat));
+			// Partial match:
+			// matched = patterns.iter().any(|pat| joined.contains(pat));
+		}
+
+		if matched {
+			// TODO: Abstract the match function to implement a trait and use this
+			// in reduce_patterns too.
+			let basename = &path.basename();
+
+			let mut match_idxs: Vec<(usize, usize)> = patterns
+				.iter()
+				.flat_map(|p| basename.match_indices(p).map(move |(idx, _)| (idx, p.len())))
+				.collect();
+
+			let mut match_text: String;
+			if match_idxs.is_empty() {
+				match_text = basename.to_string()
 			} else {
-				x.borrow_mut().matched = false;
+				match_idxs.sort();
+				match_text =
+					String::with_capacity(basename.len() + COLOR_WRAP_LEN * match_idxs.len());
+				let mut _mm = match_idxs.into_iter();
+				let (mut i, mut len) = _mm.next().unwrap();
+
+				for (j, c) in basename.chars().enumerate() {
+					if j == i {
+						match_text.push_str(BLUE);
+					} else if j == i + len {
+						match_text.push_str(RESET);
+						if let Some((ii, llen)) = _mm.next() {
+							i = ii;
+							len = llen;
+						} else {
+							match_text.push_str(&basename[j..]);
+							break;
+						}
+					}
+					match_text.push(c);
+				}
+				if i + len == basename.len() {
+					match_text.push_str(RESET);
+				}
 			}
-		})
-		.for_each(drop);
-	n
+
+			match_stack(path, &mut seen);
+			path.borrow_mut().match_text = match_text;
+		}
+	}
 }
 
 /// Create multiple paths from a `find`-like command output.
@@ -474,7 +521,9 @@ fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) 
 		""
 	};
 
-	lines.push(sel.to_owned() + &segments_to_string(&segments) + prefix + node.basename());
+	// lines.push(sel.to_owned() + &segments_to_string(&segments) + prefix + node.basename());
+	lines
+		.push(sel.to_owned() + &segments_to_string(&segments) + prefix + &node.borrow().match_text);
 
 	if node.borrow().open {
 		if let Some(children) = &node.borrow().children {
@@ -637,7 +686,7 @@ mod test {
 	}
 
 	#[test]
-	fn tree_string_test() {
+	fn tree_string_correct() {
 		let mut paths = create_test_paths();
 		let tree = create_test_tree(&paths);
 		let lines = tree_string(&tree, paths.len());
@@ -673,49 +722,52 @@ mod test {
 	}
 
 	#[test]
-	fn correct_lines_after_filtering_children() {
+	fn correct_lines_after_filtering() {
 		let paths = create_test_paths();
-		let tree = create_test_tree(&paths);
-		let n_matches = update_matched(&paths, "b");
-		let lines = tree_string(&tree, paths.len());
+		let mut tree = Tree::from_paths(paths);
+		tree.filter("b");
+		let lines = tree.as_lines();
+		let colored = vec![
+			format!("     ├──   {}b{}ayes", BLUE, RESET),
+			format!("     │   ├── {}b{}lend.c", BLUE, RESET),
+			format!("         └── {}b{}.c", BLUE, RESET),
+		];
 		let expected = vec![
 			"   .",
 			" └──   src",
-			"     ├──   bayes",
-			"     │   ├── blend.c",
+			&colored[0],
+			&colored[1],
 			"     │   └── rand.c",
 			"     └──   cakes",
-			"         └── b.c",
+			&colored[2],
 		];
-		assert_eq!(n_matches, expected.len());
+		assert_eq!(tree.calc_n_matches(), expected.len());
 		assert_eq!(lines, expected);
 	}
 
 	#[test]
 	fn correct_n_matched_after_matching_with_empty_string() {
 		let paths = create_test_paths();
-		let _ = create_test_tree(&paths);
-		let n_matches = update_matched(&paths, "");
-		assert_eq!(n_matches, paths.len());
+		let mut tree = Tree::from_paths(paths);
+		tree.filter("");
+		assert_eq!(tree.calc_n_matches(), tree.paths.len());
 	}
 
 	#[test]
 	fn update_matched_test() {
 		let paths = create_test_paths();
-		let _ = create_test_tree(&paths);
+		let mut tree = Tree::from_paths(paths);
 
-		let n_matches = update_matched(&paths, "tmp");
-		assert_eq!(n_matches, 0);
-		for pth in paths.iter() {
-			assert_eq!(pth.borrow().matched, false);
-		}
+		tree.filter("tmp");
+		assert_eq!(tree.calc_n_matches(), 0);
 
-		let n_matches = update_matched(&paths, "src");
-		assert_eq!(n_matches, 8);
+		tree.filter("src");
+		assert_eq!(tree.calc_n_matches(), 8);
+
 		let mut expected: Vec<usize> = (3..10).collect();
 		expected.push(0);
 
-		for (i, pth) in paths.iter().enumerate() {
+		for (i, pth) in tree.paths.iter().enumerate() {
 			let should_match = expected.contains(&i);
 			assert_eq!(pth.borrow().matched, should_match);
 		}
@@ -724,9 +776,9 @@ mod test {
 	#[test]
 	fn correct_tree_string() {
 		let paths = create_test_paths();
-		let tree = create_test_tree(&paths);
-		let n_matches = update_matched(&paths, "XX");
-		let response = tree_string(&tree, n_matches);
+		let mut tree = Tree::from_paths(paths);
+		tree.filter("XX");
+		let response = tree.as_lines();
 		let expected: Vec<String> = vec![];
 		assert_eq!(response, expected);
 	}
@@ -737,5 +789,57 @@ mod test {
 		let tree = create_test_tree(&paths);
 		assert_eq!(tree.n_descendants(), 10);
 		assert_eq!(paths[3].n_descendants(), 6);
+	}
+
+	#[test]
+	fn reducing_patterns() {
+		assert_eq!(reduce_patterns(&vec!["abc", "def"]), vec!["abc", "def"]);
+		assert_eq!(reduce_patterns(&vec!["abc", "abc"]), vec!["abc"]);
+		assert_eq!(reduce_patterns(&vec!["aaa", "aaaa", "a"]), vec!["aaaa"]);
+		assert_eq!(
+			reduce_patterns(&vec!["apa", "aaaa", "a"]),
+			vec!["aaaa", "apa"]
+		);
+	}
+
+	#[test]
+	fn matchfn_sets_matched_field_correctly() {
+		let paths = vec![
+			Path::new("this/is/aaaa/paath.txt".to_string(), false),
+			Path::new("this/is/aaaa/paath.txt".to_string(), false),
+			Path::new("this/is/aaaa/file.ext".to_string(), false),
+		];
+		for p in &paths {
+			p.borrow_mut().matched = false;
+		}
+		matchfn(&paths, &vec!["aaaa", "this", "paath.txt"]);
+		assert!(paths[0].borrow().matched);
+		assert!(paths[1].borrow().matched);
+		assert!(!paths[2].borrow().matched);
+
+		assert_eq!(Tree::from_paths(paths).calc_n_matches(), 2);
+	}
+
+	#[test]
+	fn matchfn_colors_basename() {
+		let paths = vec![
+			Path::new("this/is/file.rs".to_string(), false),
+			Path::new("this/is/fxiyle.xrs".to_string(), false),
+		];
+
+		matchfn(&paths, &vec!["file.rs"]);
+		assert_eq!(
+			paths[0].borrow().match_text,
+			format!("{}file.rs{}", BLUE, RESET)
+		);
+
+		matchfn(&paths, &vec!["x", "y"]);
+		assert_eq!(
+			paths[1].borrow().match_text,
+			format!(
+				"f{}x{}i{}y{}le.{}x{}rs",
+				BLUE, RESET, BLUE, RESET, BLUE, RESET
+			)
+		);
 	}
 }
