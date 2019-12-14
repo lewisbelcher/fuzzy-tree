@@ -320,8 +320,10 @@ fn matchfn(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
 		let matched;
 		{
 			let joined = &path.borrow().joined;
-			matched = patterns.iter().all(|pat| joined.contains(pat)); // Total match
-			// matched = patterns.iter().any(|pat| joined.contains(pat)); // Partial match
+			// Total match:
+			matched = patterns.iter().all(|pat| joined.contains(pat));
+			// Partial match:
+			// matched = patterns.iter().any(|pat| joined.contains(pat));
 		}
 
 		if matched {
@@ -329,13 +331,10 @@ fn matchfn(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
 			// in reduce_patterns too.
 			let basename = &path.basename();
 
-			// TODO: Use a cool nested map here instead?
-			let mut match_idxs = Vec::new();
-			for pattern in patterns {
-				for (idx, _) in basename.match_indices(pattern) {
-					match_idxs.push((idx, pattern.len()));
-				}
-			}
+			let mut match_idxs: Vec<(usize, usize)> = patterns
+				.iter()
+				.flat_map(|p| basename.match_indices(p).map(move |(idx, _)| (idx, p.len())))
+				.collect();
 
 			let mut match_text: String;
 			if match_idxs.is_empty() {
