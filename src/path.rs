@@ -214,16 +214,16 @@ impl Tree {
 		)
 	}
 
-	/// Get the i'th visible path
-	fn ith(&self, mut target: usize) -> &RcPath {
+	/// Get the i'th visible path. Returns `None` if `target` is out of range.
+	fn ith(&self, mut target: usize) -> Option<&RcPath> {
 		let mut i = 0;
 		loop {
-			let pth = &self.paths[i];
+			let pth = self.paths.get(i)?;
 			if !pth.borrow().matched {
 				target += 1;
 			}
 			if i == target {
-				return pth;
+				return Some(pth);
 			}
 			if !pth.borrow().open {
 				let n_descendants = pth.n_descendants();
@@ -236,15 +236,23 @@ impl Tree {
 
 	/// Flip the `open` status of the `i`th displayed path.
 	pub fn flip_open(&mut self, i: usize) {
-		let mut pth = self.ith(i).borrow_mut();
-		pth.open = !pth.open;
+		let mut pth;
+		if let Some(_pth) = self.ith(i) {
+			pth = _pth.borrow_mut();
+			pth.open = !pth.open;
+		}
 	}
 
 	/// Flip the `selected` status of the `i`th displayed path.
 	pub fn flip_selected(&mut self, i: usize) {
 		{
-			let mut pth = self.ith(i).borrow_mut();
-			pth.selected = !pth.selected;
+			let mut pth;
+			if let Some(_pth) = self.ith(i) {
+				pth = _pth.borrow_mut();
+				pth.selected = !pth.selected;
+			} else {
+				return;
+			}
 		}
 
 		let mut n_selected = 0;

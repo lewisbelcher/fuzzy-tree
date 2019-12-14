@@ -38,7 +38,6 @@ fn main() {
 					ui.move_down();
 				} else if c == '`' {
 					tree.flip_open(ui.index());
-					ui.chars_changed = true;
 				} else if c == '\n' {
 					if tree.n_selected == 0 {
 						tree.flip_selected(ui.index());
