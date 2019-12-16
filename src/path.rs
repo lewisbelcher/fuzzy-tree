@@ -40,17 +40,7 @@ impl fmt::Debug for Path {
 
 impl Ord for Path {
 	fn cmp(&self, other: &Self) -> Ordering {
-		let mut result;
-
-		for (x, y) in self.components.iter().zip(other.components.iter()) {
-			result = x.cmp(y);
-			if result != Ordering::Equal {
-				return result;
-			}
-		}
-
-		// If all zipped components were equal, compare length
-		self.components.len().cmp(&other.components.len())
+		return self.joined.cmp(&other.joined);
 	}
 }
 
@@ -190,7 +180,7 @@ impl Tree {
 			self.reset_matched(false);
 			let patterns: Vec<&str> = text.split(" ").filter(|x| !x.is_empty()).collect();
 			let patterns = reduce_patterns(&patterns);
-			matchfn(&self.paths, &patterns);
+			match_paths(&self.paths, &patterns);
 			self.n_matches = self.calc_n_matches();
 		}
 	}
@@ -319,63 +309,83 @@ fn reduce_patterns<'a>(patterns: &Vec<&'a str>) -> Vec<&'a str> {
 	patterns
 }
 
-/// Works under the assumption that all patterns are disjoint patterns. Use
+/// Check if `string` matches `patterns`. If `full`, then all patterns must
+/// be founed, otherwise a single pattern is enough.
+fn matches(string: &str, patterns: &Vec<&str>, full: bool) -> bool {
+	if full {
+		patterns.iter().all(|pat| string.contains(pat))
+	} else {
+		patterns.iter().any(|pat| string.contains(pat))
+	}
+}
+
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
+struct MatchIdx {
+	start: usize,
+	end: usize,
+}
+
+fn match_indices(patterns: &Vec<&str>, string: &str) -> Vec<MatchIdx> {
+	patterns
+		.iter()
+		.flat_map(|p| {
+			string.match_indices(p).map(move |(start, _)| MatchIdx {
+				start,
+				end: start + p.len(),
+			})
+		})
+		.collect()
+}
+
+fn merge_adjacent_indices(mut idxs: Vec<MatchIdx>) -> Vec<MatchIdx> {
+	// TODO: Merge adjacent indices
+	idxs
+}
+
+fn wrap_matches_in_color(basename: &str, mut idxs: Vec<MatchIdx>) -> String {
+	if idxs.is_empty() {
+		basename.to_string()
+	} else {
+		idxs.sort();
+		let mut text = String::with_capacity(basename.len() + COLOR_WRAP_LEN * idxs.len());
+		let mut iter_idxs = idxs.into_iter();
+		let mut idx = iter_idxs.next().unwrap(); // We know idxs is not empty
+
+		for (j, c) in basename.chars().enumerate() {
+			if j == idx.start {
+				text.push_str(BLUE);
+			} else if j == idx.end {
+				text.push_str(RESET);
+				if let Some(_idx) = iter_idxs.next() {
+					idx = _idx;
+				} else {
+					text.push_str(&basename[j..]);
+					break;
+				}
+			}
+			text.push(c);
+		}
+		if idx.end == basename.len() {
+			text.push_str(RESET);
+		}
+		text
+	}
+}
+
+/// Works under the assumption that all patterns are disjoint. Use
 /// `reduce_patterns` to ensure this.
-fn matchfn(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
+fn match_paths(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
+	// TODO: Abstract a match function with a trait bound (use this in
+	// reduce_patterns too)
 	let mut seen = Vec::new();
 
 	for path in paths {
-		let matched;
-		{
-			let joined = &path.borrow().joined;
-			// Total match:
-			matched = patterns.iter().all(|pat| joined.contains(pat));
-			// Partial match:
-			// matched = patterns.iter().any(|pat| joined.contains(pat));
-		}
-
-		if matched {
-			// TODO: Abstract the match function to implement a trait and use this
-			// in reduce_patterns too.
+		if matches(&path.borrow().joined, patterns, true) {
 			let basename = &path.basename();
-
-			let mut match_idxs: Vec<(usize, usize)> = patterns
-				.iter()
-				.flat_map(|p| basename.match_indices(p).map(move |(idx, _)| (idx, p.len())))
-				.collect();
-
-			let mut match_text: String;
-			if match_idxs.is_empty() {
-				match_text = basename.to_string()
-			} else {
-				match_idxs.sort();
-				match_text =
-					String::with_capacity(basename.len() + COLOR_WRAP_LEN * match_idxs.len());
-				let mut _mm = match_idxs.into_iter();
-				let (mut i, mut len) = _mm.next().unwrap();
-
-				for (j, c) in basename.chars().enumerate() {
-					if j == i {
-						match_text.push_str(BLUE);
-					} else if j == i + len {
-						match_text.push_str(RESET);
-						if let Some((ii, llen)) = _mm.next() {
-							i = ii;
-							len = llen;
-						} else {
-							match_text.push_str(&basename[j..]);
-							break;
-						}
-					}
-					match_text.push(c);
-				}
-				if i + len == basename.len() {
-					match_text.push_str(RESET);
-				}
-			}
-
+			let idxs = match_indices(patterns, basename);
+			let text = wrap_matches_in_color(basename, idxs);
 			match_stack(path, &mut seen);
-			path.borrow_mut().match_text = match_text;
+			path.borrow_mut().match_text = text;
 		}
 	}
 }
@@ -426,7 +436,7 @@ macro_rules! debug_relation {
 /// Max recursion depth will be equal to the max directory depth. It is
 /// unlikely that we'll hit a stack overflow.
 ///
-/// There are three potential routes in each recursion frame:
+/// There are three potential branches in each recursion frame:
 ///  1. If `next` is child of `prev`: add `next` to `prev` and recurse with
 ///     `prev` as `base`, `next` as `prev`
 ///  2. If `next` is a child of `base`: consume `next` and add it to `base`
@@ -529,7 +539,6 @@ fn _tree_string(node: &RcPath, lines: &mut Vec<String>, segments: Vec<Segment>) 
 		""
 	};
 
-	// lines.push(sel.to_owned() + &segments_to_string(&segments) + prefix + node.basename());
 	lines
 		.push(sel.to_owned() + &segments_to_string(&segments) + prefix + &node.borrow().match_text);
 
@@ -811,7 +820,7 @@ mod test {
 	}
 
 	#[test]
-	fn matchfn_sets_matched_field_correctly() {
+	fn match_paths_sets_matched_field_correctly() {
 		let paths = vec![
 			Path::new("this/is/aaaa/paath.txt".to_string(), false),
 			Path::new("this/is/aaaa/paath.txt".to_string(), false),
@@ -820,7 +829,7 @@ mod test {
 		for p in &paths {
 			p.borrow_mut().matched = false;
 		}
-		matchfn(&paths, &vec!["aaaa", "this", "paath.txt"]);
+		match_paths(&paths, &vec!["aaaa", "this", "paath.txt"]);
 		assert!(paths[0].borrow().matched);
 		assert!(paths[1].borrow().matched);
 		assert!(!paths[2].borrow().matched);
@@ -829,25 +838,32 @@ mod test {
 	}
 
 	#[test]
-	fn matchfn_colors_basename() {
+	fn match_paths_colors_basename() {
 		let paths = vec![
 			Path::new("this/is/file.rs".to_string(), false),
 			Path::new("this/is/fxiyle.xrs".to_string(), false),
 		];
 
-		matchfn(&paths, &vec!["file.rs"]);
+		match_paths(&paths, &vec!["file.rs"]);
 		assert_eq!(
 			paths[0].borrow().match_text,
 			format!("{}file.rs{}", BLUE, RESET)
 		);
 
-		matchfn(&paths, &vec!["x", "y"]);
+		match_paths(&paths, &vec!["x", "y"]);
 		assert_eq!(
 			paths[1].borrow().match_text,
 			format!(
 				"f{}x{}i{}y{}le.{}x{}rs",
 				BLUE, RESET, BLUE, RESET, BLUE, RESET
 			)
+		);
+
+		let paths = vec![Path::new("path/sha1.js".to_string(), false)];
+		match_paths(&paths, &vec!["s", "ha"]);
+		assert_eq!(
+			paths[0].borrow().match_text,
+			format!("{}sha{}1.j{}s{}", BLUE, RESET, BLUE, RESET)
 		);
 	}
 }
