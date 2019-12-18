@@ -1,7 +1,7 @@
-#[macro_use]
-extern crate lazy_static;
 pub mod config;
+#[macro_use]
 pub mod path;
+pub mod tree;
 pub mod tui;
 use std::env;
 use std::process::{self, Command};
@@ -19,7 +19,7 @@ fn main() {
 		.expect("Failed to execute command `fd`")
 		.stdout;
 
-	let mut tree = path::Tree::from_stdout(stdout);
+	let mut tree = tree::Tree::from_stdout(stdout);
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
 	let lines = tree.as_lines();
