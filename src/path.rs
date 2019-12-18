@@ -178,7 +178,7 @@ impl Tree {
 			self.n_matches = self.paths.len();
 		} else {
 			self.reset_matched(false);
-			let patterns: Vec<&str> = text.split(" ").filter(|x| !x.is_empty()).collect();
+			let patterns = split_by_space(text);
 			let patterns = reduce_patterns(&patterns);
 			match_paths(&self.paths, &patterns);
 			self.n_matches = self.calc_n_matches();
@@ -258,6 +258,10 @@ impl Tree {
 	}
 }
 
+fn split_by_space(text: &str) -> Vec<&str> {
+	text.split(" ").filter(|x| !x.is_empty()).collect()
+}
+
 // TODO: Should be able to use node directly instead of a clone of the
 // joined path....
 fn push_seen(seen: &mut Vec<String>, node: &RcPath) -> bool {
@@ -319,7 +323,7 @@ fn matches(string: &str, patterns: &Vec<&str>, full: bool) -> bool {
 	}
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
 struct MatchIdx {
 	start: usize,
 	end: usize,
@@ -338,15 +342,28 @@ fn match_indices(patterns: &Vec<&str>, string: &str) -> Vec<MatchIdx> {
 }
 
 fn merge_adjacent_indices(mut idxs: Vec<MatchIdx>) -> Vec<MatchIdx> {
-	// TODO: Merge adjacent indices
-	idxs
+	if idxs.len() < 1 {
+		return idxs;
+	}
+	idxs.sort();
+	let mut i = 1;
+	loop {
+		if i == idxs.len() {
+			return idxs;
+		}
+		if idxs[i - 1].end == idxs[i].start {
+			idxs[i - 1].end = idxs[i].end;
+			idxs.remove(i);
+		} else {
+			i += 1;
+		}
+	}
 }
 
-fn wrap_matches_in_color(basename: &str, mut idxs: Vec<MatchIdx>) -> String {
+fn wrap_matches_in_color(basename: &str, idxs: Vec<MatchIdx>) -> String {
 	if idxs.is_empty() {
 		basename.to_string()
 	} else {
-		idxs.sort();
 		let mut text = String::with_capacity(basename.len() + COLOR_WRAP_LEN * idxs.len());
 		let mut iter_idxs = idxs.into_iter();
 		let mut idx = iter_idxs.next().unwrap(); // We know idxs is not empty
@@ -382,7 +399,8 @@ fn match_paths(paths: &Vec<RcPath>, patterns: &Vec<&str>) {
 	for path in paths {
 		if matches(&path.borrow().joined, patterns, true) {
 			let basename = &path.basename();
-			let idxs = match_indices(patterns, basename);
+			let mut idxs = match_indices(patterns, basename);
+			idxs = merge_adjacent_indices(idxs);
 			let text = wrap_matches_in_color(basename, idxs);
 			match_stack(path, &mut seen);
 			path.borrow_mut().match_text = text;
@@ -858,7 +876,40 @@ mod test {
 				BLUE, RESET, BLUE, RESET, BLUE, RESET
 			)
 		);
+	}
 
+	#[test]
+	fn merging_indices_works() {
+		let created: Vec<Vec<MatchIdx>> = vec![
+			vec![MatchIdx { start: 0, end: 1 }, MatchIdx { start: 1, end: 2 }],
+			vec![
+				MatchIdx { start: 6, end: 12 },
+				MatchIdx { start: 1, end: 6 },
+			],
+			vec![
+				MatchIdx { start: 6, end: 12 },
+				MatchIdx { start: 1, end: 6 },
+				MatchIdx { start: 33, end: 36 },
+			],
+		]
+		.into_iter()
+		.map(merge_adjacent_indices)
+		.collect();
+
+		let expected = vec![
+			vec![MatchIdx { start: 0, end: 2 }],
+			vec![MatchIdx { start: 1, end: 12 }],
+			vec![
+				MatchIdx { start: 1, end: 12 },
+				MatchIdx { start: 33, end: 36 },
+			],
+		];
+
+		assert_eq!(created, expected);
+	}
+
+	#[test]
+	fn adjacent_matches_are_colored_correctly() {
 		let paths = vec![Path::new("path/sha1.js".to_string(), false)];
 		match_paths(&paths, &vec!["s", "ha"]);
 		assert_eq!(
