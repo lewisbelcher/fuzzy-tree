@@ -166,7 +166,8 @@ impl Tui {
 	}
 
 	pub fn page_down(&mut self) {
-		if self.current_lines <= self.offset + self.display_lines {
+		if self.current_lines == 0 {
+		} else if self.current_lines <= self.offset + self.display_lines {
 			self.offset = self.current_lines - 1;
 			self.line_pos = 0;
 		} else {
