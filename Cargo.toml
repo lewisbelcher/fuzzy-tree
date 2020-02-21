@@ -8,3 +8,7 @@ edition = "2018"
 lazy_static = "1.4"
 log = "0.4"
 termion = "1"
+
+[[bin]]
+name = "fztree"
+path = "src/main.rs"
