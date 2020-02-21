@@ -8,12 +8,13 @@ use std::process::{self, Command};
 use termion::color;
 use termion::event::Key;
 
-const DISPLAY_LINES: usize = 10;
+const DISPLAY_LINES: usize = 30;
+const FIND_CMD: &str = "fd";
 
 fn main() {
 	let args = env::args().skip(1).collect::<Vec<_>>();
 
-	let stdout = Command::new("fd")
+	let stdout = Command::new(FIND_CMD)
 		.args(&args)
 		.output()
 		.expect("Failed to execute command `fd`")
