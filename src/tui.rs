@@ -1,4 +1,3 @@
-use crate::config;
 use crate::path;
 use std::cmp;
 use std::io::{self, Write};
@@ -29,11 +28,12 @@ fn print_tree(lines: &[String], pos: u16, display_lines: usize) {
 		}
 
 		print!(
-			"{}{}{}{}\r\n",
+			"{}{}{}{}{}",
 			clear::CurrentLine,
 			if i == (pos as usize) { &highlight } else { " " },
 			line,
-			color::Bg(color::Reset)
+			color::Bg(color::Reset),
+			if i == display_lines - 1 { "" } else { "\r\n" }, // TODO: Optimise
 		);
 	}
 }
@@ -68,15 +68,20 @@ pub struct Tui {
 }
 
 impl Tui {
-	pub fn new(prompt: String, display_lines: usize, current_lines: usize) -> Self {
+	pub fn new(prompt: String, mut display_lines: usize, current_lines: usize) -> Self {
 		let mut stdout = io::stdout().into_raw_mode().unwrap();
 		let mut start_pos = stdout.cursor_pos().unwrap();
 
 		// Scroll up to allow min screen space at bottom of screen
 		let size = termion::terminal_size().unwrap();
+		display_lines = cmp::min(display_lines, size.1 as usize);
+		debug!("Terminal size: {:?}", size);
+		debug!("Starting pos: {:?}", start_pos);
 		let min_line = size.1 - display_lines as u16;
 		if min_line < start_pos.1 {
-			print!("{}", scroll::Up(start_pos.1 - min_line));
+			let diff = start_pos.1 - min_line;
+			debug!("Scrolling up {} lines", diff);
+			print!("{}", scroll::Up(diff));
 			start_pos.1 = min_line;
 		}
 
@@ -314,15 +319,11 @@ impl Tui {
 		}
 
 		self.current_lines = path_lines.len();
-		if !config::debug() {
-			self.goto_start();
-		}
+		self.goto_start();
 		self.print_input_line();
 		print_info_line(info_line);
 		self.print_body(path_lines);
-		if !config::debug() {
-			self.return_cursor();
-		}
+		self.return_cursor();
 		self.flush();
 	}
 

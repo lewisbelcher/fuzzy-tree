@@ -1,17 +1,22 @@
-pub mod config;
 #[macro_use]
 pub mod path;
 pub mod tree;
 pub mod tui;
+#[macro_use]
+extern crate log;
+use log::Level;
 use std::env;
+use std::io;
 use std::process::{self, Command};
 use termion::color;
 use termion::event::Key;
 
-const DISPLAY_LINES: usize = 30;
+const DISPLAY_LINES: usize = 20;
 const FIND_CMD: &str = "fd";
 
-fn main() {
+fn main() -> Result<(), io::Error> {
+	env_logger::init();
+
 	let args = env::args().skip(1).collect::<Vec<_>>();
 
 	let stdout = Command::new(FIND_CMD)
@@ -77,7 +82,7 @@ fn main() {
 		}
 
 		let mut info_line = tree.info_line();
-		if config::debug() {
+		if log_enabled!(Level::Debug) {
 			info_line += &ui.info_line();
 		}
 
@@ -85,4 +90,6 @@ fn main() {
 	}
 
 	ui.flush();
+
+	Ok(())
 }

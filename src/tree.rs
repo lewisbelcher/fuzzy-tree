@@ -1,5 +1,4 @@
 use crate::path::{PathBehaviour, RcPath, create_paths};
-use log::debug;
 use std::rc::Rc;
 
 const DIR_OPEN: &str = "  ";
@@ -290,10 +289,10 @@ fn peek(stack: &[RcPath], i: usize) -> Option<&RcPath> {
 
 macro_rules! debug_relation {
 	($obj1:expr; child $obj2:expr) => {
-		debug!("{:?} is child of {:?}", $obj1.borrow(), $obj2.borrow());
+		trace!("{:?} is child of {:?}", $obj1.borrow(), $obj2.borrow());
 	};
 	($obj1:expr; unrelated $obj2:expr, $obj3:expr) => {
-		debug!(
+		trace!(
 			"{:?} is unrelated to {:?} and {:?}",
 			$obj1.borrow(),
 			$obj2.borrow(),
@@ -319,9 +318,8 @@ fn _create_tree<'a>(
 	mut prev: Option<&'a RcPath>,
 	stack: &'a [RcPath],
 ) -> usize {
-	// TODO: Use log package
 	loop {
-		debug!("~~~ {} ~~~", i);
+		trace!("~~~ {} ~~~", i);
 		i += 1;
 		if let Some(next) = peek(stack, i) {
 			if let Some(prev) = prev {
