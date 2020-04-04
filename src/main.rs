@@ -34,8 +34,6 @@ fn main() -> Result<(), io::Error> {
 	ui.render(tree.info_line(), lines);
 
 	for c in tui::iter_keys() {
-		ui.chars_changed = false;
-
 		match c.unwrap() {
 			Key::Esc => break,
 			Key::Char(c) => {

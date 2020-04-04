@@ -325,6 +325,7 @@ impl Tui {
 		self.print_body(path_lines);
 		self.return_cursor();
 		self.flush();
+		self.chars_changed = false;
 	}
 
 	/// Return the total index position, defined as the current line number
