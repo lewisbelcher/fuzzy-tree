@@ -8,6 +8,7 @@ mod utils;
 extern crate log;
 use log::Level;
 use std::io;
+use std::mem;
 use std::process::{self, Command};
 use termion::color;
 use termion::event::Key;
@@ -55,7 +56,12 @@ fn main() -> Result<(), io::Error> {
 			Key::Ctrl(c) => {
 				// TODO: ctrl-arrow is not supported?
 				match c {
-					'c' => process::exit(130), // TODO: Fix bad rendering after this
+					'c' => {
+						// Make sure we drop ui so that terminal is reverted from "raw mode"
+						mem::drop(ui);
+						mem::drop(tree);
+						process::exit(130);
+					},
 					'u' => ui.stash(),
 					'w' => ui.word_stash(),
 					'y' => ui.pop(),
