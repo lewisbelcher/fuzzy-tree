@@ -1,8 +1,9 @@
 #[macro_use]
 mod args;
-pub mod path;
-pub mod tree;
-pub mod tui;
+mod path;
+mod tree;
+mod tui;
+mod utils;
 #[macro_use]
 extern crate log;
 use log::Level;
@@ -19,7 +20,7 @@ fn main() -> Result<(), io::Error> {
 
 	let stdout = Command::new(&cliargs.cmd)
 		.output()
-		.expect("Failed to execute command `fd`")
+		.unwrap_or_else(|_| utils::exit(&format!("Failed to execute command `{}`", &cliargs.cmd)))
 		.stdout;
 
 	let mut tree = tree::Tree::from_stdout(stdout);

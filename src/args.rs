@@ -1,5 +1,5 @@
+use crate::utils;
 use clap::{crate_version, App, Arg};
-use std::process;
 
 #[derive(Debug)]
 pub struct Args {
@@ -45,14 +45,10 @@ fn parse_lines(value: Option<&str>) -> usize {
 	match value.parse() {
 		Ok(v) => {
 			if v < 3 {
-				eprintln!("option '--lines' must be >=3");
-				process::exit(1);
+				utils::exit("option '--lines' must be >=3")
 			}
 			v
 		}
-		Err(_) => {
-			eprintln!("invalid integer for option '--lines': {}", value);
-			process::exit(1);
-		}
+		Err(_) => utils::exit(&format!("invalid integer for option '--lines': {}", value)),
 	}
 }
