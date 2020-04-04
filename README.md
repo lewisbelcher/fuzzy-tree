@@ -9,9 +9,11 @@ TODO
 
 * Implement ctrl+{left,right}
 * By default directories are collapsed if they have over 10(?) children?
-* Allow setting find command / control keys via env vars / config file
-* Allow setting config file location via env var
+* Implement using a config file for:
+  - Setting default command line arguments
+  - Setting control keys
 * Improve matching to include regexes
+* Improve stability of tui (maybe termion is a little unstable?)
 
 Example tree (used in tests):
 
