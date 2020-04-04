@@ -119,7 +119,7 @@ impl Tui {
 
 	fn print_body(&self, lines: Vec<String>) {
 		print!("{}", clear::AfterCursor);
-		print_tree(&lines[self.offset..], self.line_pos, self.display_lines - 2);
+		print_tree(&lines[self.offset..], self.line_pos, self.display_lines - 1);
 	}
 
 	fn return_cursor(&self) {
@@ -151,7 +151,7 @@ impl Tui {
 		let x = self.line_pos as usize;
 		if x + self.offset == self.current_lines - 1 {
 			// Do nout
-		} else if x == self.display_lines - 3 {
+		} else if x == self.display_lines - 2 {
 			self.offset += 1;
 		} else {
 			self.line_pos += 1;
