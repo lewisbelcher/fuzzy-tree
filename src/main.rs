@@ -54,18 +54,17 @@ fn main() -> Result<(), io::Error> {
 				}
 			}
 			Key::Ctrl(c) => {
-				// TODO: ctrl-arrow is not supported?
 				match c {
 					'c' => {
 						// Make sure we drop ui so that terminal is reverted from "raw mode"
 						mem::drop(ui);
 						mem::drop(tree);
 						process::exit(130);
-					},
+					}
 					'u' => ui.stash(),
 					'w' => ui.word_stash(),
 					'y' => ui.pop(),
-					_ => {}
+					x => debug!("Got ctrl-{}", x),
 				}
 			}
 			Key::Left => ui.move_left(),
@@ -78,7 +77,7 @@ fn main() -> Result<(), io::Error> {
 			Key::Delete => ui.delete(),
 			Key::Home => ui.home(),
 			Key::End => ui.end(),
-			_ => {}
+			x => debug!("Got {:?}", x),
 		}
 
 		if ui.chars_changed {
