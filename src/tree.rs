@@ -44,6 +44,19 @@ impl Tree {
 		}
 	}
 
+	/// Collapse all directories with more than `n` children.
+	pub fn collapse_over(&self, n: usize) {
+		for rcpth in &self.paths[1..] {
+			let mut pth = rcpth.borrow_mut();
+			if let Some(children) = &pth.children {
+				if children.len() > n {
+					pth.open = false;
+				}
+			}
+		}
+	}
+
+	/// Filter all shown paths by matching with `text`.
 	pub fn filter(&mut self, text: &str) {
 		if text.is_empty() {
 			self.reset_matched(true);
@@ -98,10 +111,8 @@ impl Tree {
 
 	/// Flip the `open` status of the `i`th displayed path.
 	pub fn flip_open(&mut self, i: usize) {
-		let mut pth;
-		if let Some(_pth) = self.ith(i) {
-			pth = _pth.borrow_mut();
-			pth.open = !pth.open;
+		if let Some(pth) = self.ith(i) {
+			pth.flip_open();
 		}
 	}
 

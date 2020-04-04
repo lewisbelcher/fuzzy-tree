@@ -8,7 +8,6 @@ TODO
 ----
 
 * Implement ctrl+{left,right}
-* By default directories are collapsed if they have over 10(?) children?
 * Implement using a config file for:
   - Setting default command line arguments
   - Setting control keys

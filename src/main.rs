@@ -24,9 +24,11 @@ fn main() -> Result<(), io::Error> {
 		.stdout;
 
 	let mut tree = tree::Tree::from_stdout(stdout);
-
-	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
+	if cliargs.collapse > 0 {
+		tree.collapse_over(cliargs.collapse)
+	}
 	let lines = tree.as_lines();
+	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
 	let mut ui = tui::Tui::new(prompt, cliargs.lines, lines.len());
 
 	ui.render(tree.info_line(), lines);

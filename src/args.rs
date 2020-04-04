@@ -1,10 +1,11 @@
 use crate::utils;
-use clap::{crate_version, App, Arg};
+use clap::{crate_version, App, Arg, ArgMatches};
 
 #[derive(Debug)]
 pub struct Args {
-	pub lines: usize,
 	pub cmd: String,
+	pub collapse: usize,
+	pub lines: usize,
 }
 
 pub fn collect() -> Args {
@@ -21,6 +22,14 @@ pub fn collect() -> Args {
 				.takes_value(true),
 		)
 		.arg(
+			Arg::with_name("collapse")
+				.short("n")
+				.long("collapse")
+				.value_name("N")
+				.help("Directories with more than N children will initially be collapsed")
+				.takes_value(true),
+		)
+		.arg(
 			Arg::with_name("lines")
 				.short("l")
 				.long("lines")
@@ -31,24 +40,23 @@ pub fn collect() -> Args {
 		.get_matches();
 
 	Args {
-		cmd: parse_cmd(matches.value_of("cmd")),
-		lines: parse_lines(matches.value_of("lines")),
+		cmd: matches.value_of("cmd").unwrap_or("fd").to_string(),
+		collapse: parse_usize(&matches, "collapse", 0).unwrap_or(10),
+		lines: parse_usize(&matches, "lines", 3).unwrap_or(20),
 	}
 }
 
-fn parse_cmd(value: Option<&str>) -> String {
-	value.unwrap_or("fd").to_string()
-}
-
-fn parse_lines(value: Option<&str>) -> usize {
-	let value = value.unwrap_or("20");
-	match value.parse() {
-		Ok(v) => {
-			if v < 3 {
-				utils::exit("option '--lines' must be >=3")
+fn parse_usize(matches: &ArgMatches, arg: &str, min: usize) -> Option<usize> {
+	if let Some(value) = matches.value_of(arg) {
+		if let Ok(v) = value.parse() {
+			if v < min {
+				utils::exit(&format!("option '--{}' must be >={}", arg, min))
 			}
-			v
+			Some(v)
+		} else {
+			utils::exit(&format!("invalid value for option '--{}': {}", arg, value));
 		}
-		Err(_) => utils::exit(&format!("invalid integer for option '--lines': {}", value)),
+	} else {
+		None
 	}
 }

@@ -81,17 +81,24 @@ fn add(child: &RcPath, parent: &RcPath) {
 // Since `Path`s are wrapped in `Rc`s which cannot be implemented on directly,
 // functionality is implemented via a trait.
 pub trait PathBehaviour {
+	fn flip_open(&self);
 	fn add_child(&self, child: &RcPath);
 	fn add_parent(&self, parent: &RcPath);
 	fn is_child_of(&self, other: &RcPath) -> bool;
 	fn basename(&self) -> &str;
 	fn len(&self) -> usize;
+	fn n_children(&self) -> usize;
 	fn n_descendants(&self) -> usize;
 }
 
 impl PathBehaviour for RcPath {
 	// TODO: Also add helper methods for borrow of `matched`, `selected`, `children`
 	// etc.. This could be done with a macro?
+
+	fn flip_open(&self) {
+		let mut p = self.borrow_mut();
+		p.open = !p.open;
+	}
 
 	fn add_child(&self, child: &RcPath) {
 		add(child, self);
@@ -117,6 +124,15 @@ impl PathBehaviour for RcPath {
 		self.borrow().components.len()
 	}
 
+	fn n_children(&self) -> usize {
+		if let Some(children) = &self.borrow().children {
+			children.len()
+		} else {
+			0
+		}
+	}
+
+	/// Total number of descendants of a path
 	fn n_descendants(&self) -> usize {
 		let mut i = 0;
 		if let Some(children) = &self.borrow().children {
