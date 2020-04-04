@@ -23,18 +23,17 @@ fn print_tree(lines: &[String], pos: u16, display_lines: usize) {
 	);
 
 	for (i, line) in lines.iter().enumerate() {
-		if i == display_lines {
-			break;
-		}
-
 		print!(
-			"{}{}{}{}{}",
+			"{}{}{}{}",
 			clear::CurrentLine,
 			if i == (pos as usize) { &highlight } else { " " },
 			line,
 			color::Bg(color::Reset),
-			if i == display_lines - 1 { "" } else { "\r\n" }, // TODO: Optimise
 		);
+		if i == display_lines - 1 {
+			break;
+		}
+		print!("\r\n"); // NB don't print out the extra CRLF on the last line!
 	}
 }
 
