@@ -1,26 +1,23 @@
 #[macro_use]
+mod args;
 pub mod path;
 pub mod tree;
 pub mod tui;
 #[macro_use]
 extern crate log;
 use log::Level;
-use std::env;
 use std::io;
 use std::process::{self, Command};
 use termion::color;
 use termion::event::Key;
 
-const DISPLAY_LINES: usize = 20;
-const FIND_CMD: &str = "fd";
-
 fn main() -> Result<(), io::Error> {
 	env_logger::init();
 
-	let args = env::args().skip(1).collect::<Vec<_>>();
+	let cliargs = args::collect();
+	debug!("{:?}", cliargs);
 
-	let stdout = Command::new(FIND_CMD)
-		.args(&args)
+	let stdout = Command::new(&cliargs.cmd)
 		.output()
 		.expect("Failed to execute command `fd`")
 		.stdout;
@@ -29,7 +26,7 @@ fn main() -> Result<(), io::Error> {
 
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
 	let lines = tree.as_lines();
-	let mut ui = tui::Tui::new(prompt, DISPLAY_LINES, lines.len());
+	let mut ui = tui::Tui::new(prompt, cliargs.lines, lines.len());
 
 	ui.render(tree.info_line(), lines);
 
