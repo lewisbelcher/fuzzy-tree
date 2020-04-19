@@ -5,18 +5,6 @@ A simple fuzzy finder written in Rust which displays results in tree format.
 
 ![img](static/fztree.gif)
 
-Example tree (used in tests):
-
-```
-  .
-├──   A
-├──   B
-├──   src
-│   └──   cakes
-│       ├── a.c
-│       └── b.c
-└── x.txt
-```
 
 Contributing
 ------------
