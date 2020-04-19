@@ -2,7 +2,14 @@ image: rust
 
 stages:
   - test
+  - publish
 
 test:
   stage: test
   script: cargo test
+
+publish:
+  stage: publish
+  script:
+    - cargo login $CARGO_TOKEN
+    - cargo publish
