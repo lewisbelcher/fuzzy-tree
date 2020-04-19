@@ -1,7 +1,8 @@
 Fuzzy Tree
 ==========
 
-A simple fuzzy finder written in Rust which displays results in tree format.
+A simple fuzzy finder written in Rust which displays results in an interactive
+tree format.
 
 ![img](static/fztree.gif)
 
