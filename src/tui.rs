@@ -206,18 +206,6 @@ impl Tui {
 		}
 	}
 
-	pub fn move_left_word(&mut self) {
-		let curs_pos = self.curs_pos as usize;
-		if self.curs_pos > 0 {
-			for i in 0..curs_pos {
-				if self.chars[curs_pos - i] == ' ' {
-					self.curs_pos = i as u16;
-					break;
-				}
-			}
-		}
-	}
-
 	pub fn word_stash(&mut self) {
 		if self.curs_pos < 1 {
 			return;
