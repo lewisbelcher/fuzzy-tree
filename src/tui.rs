@@ -1,3 +1,8 @@
+// Copyright ⓒ 2019-2020 Lewis Belcher
+// Licensed under the MIT license (see LICENSE or <http://opensource.org/licenses/MIT>).
+// All files in the project carrying such notice may not be copied, modified, or
+// distributed except according to those terms.
+
 use crate::path;
 use std::cmp;
 use std::io::{self, Write};
