@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt;
 use std::fs;
+use std::io::{self, ErrorKind};
 use std::path;
 use std::rc::Rc;
 
@@ -145,12 +146,18 @@ impl PathBehaviour for RcPath {
 }
 
 /// Create multiple paths from a `find`-like command output.
-pub fn create_paths(string: Vec<u8>) -> Vec<RcPath> {
+pub fn create_paths(string: Vec<u8>) -> Result<Vec<RcPath>, io::Error> {
 	let mut paths: Vec<RcPath> = String::from_utf8(string)
-		.unwrap()
+		.map_err(|e| {
+			io::Error::new(
+				ErrorKind::InvalidInput,
+				format!("error reading stdout: {}", e),
+			)
+		})?
 		.split('\n')
 		.filter(|x| !x.is_empty())
-		.map(|x| Path::from(x, fs::metadata(&x).unwrap().is_dir()))
+		// .map(|x| Path::from(x, fs::metadata(&x)?.is_dir()))
+		.map(|x| Path::from(x, fs::metadata(&x).map_or_else(|e| false, |v| v.is_dir())))
 		.collect();
 
 	paths.sort();
@@ -161,7 +168,7 @@ pub fn create_paths(string: Vec<u8>) -> Vec<RcPath> {
 	}
 	paths.insert(0, Path::from(".", true));
 
-	paths
+	Ok(paths)
 }
 
 #[macro_export]

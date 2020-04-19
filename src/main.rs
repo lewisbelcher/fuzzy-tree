@@ -24,18 +24,18 @@ fn main() -> Result<(), io::Error> {
 		.unwrap_or_else(|_| utils::exit(&format!("Failed to execute command `{}`", &cliargs.cmd)))
 		.stdout;
 
-	let mut tree = tree::Tree::from_stdout(stdout);
+	let mut tree = tree::Tree::from_stdout(stdout)?;
 	if cliargs.collapse > 0 {
 		tree.collapse_over(cliargs.collapse)
 	}
 	let lines = tree.as_lines();
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
-	let mut ui = tui::Tui::new(prompt, cliargs.lines, lines.len());
+	let mut ui = tui::Tui::new(prompt, cliargs.lines, lines.len())?;
 
-	ui.render(tree.info_line(), lines);
+	ui.render(tree.info_line(), lines)?;
 
 	for c in tui::iter_keys() {
-		match c.unwrap() {
+		match c? {
 			Key::Esc => break,
 			Key::Char(c) => {
 				if c == '\t' {
@@ -89,10 +89,10 @@ fn main() -> Result<(), io::Error> {
 			info_line += &ui.info_line();
 		}
 
-		ui.render(info_line, tree.as_lines());
+		ui.render(info_line, tree.as_lines())?;
 	}
 
-	ui.flush();
+	ui.flush()?;
 
 	Ok(())
 }

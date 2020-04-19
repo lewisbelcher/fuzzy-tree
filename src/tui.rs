@@ -67,12 +67,16 @@ pub struct Tui {
 }
 
 impl Tui {
-	pub fn new(prompt: String, mut display_lines: usize, current_lines: usize) -> Self {
-		let mut stdout = io::stdout().into_raw_mode().unwrap();
-		let mut start_pos = stdout.cursor_pos().unwrap();
+	pub fn new(
+		prompt: String,
+		mut display_lines: usize,
+		current_lines: usize,
+	) -> Result<Self, io::Error> {
+		let mut stdout = io::stdout().into_raw_mode()?;
+		let mut start_pos = stdout.cursor_pos()?;
 
 		// Scroll up to allow min screen space at bottom of screen
-		let size = termion::terminal_size().unwrap();
+		let size = termion::terminal_size()?;
 		display_lines = cmp::min(display_lines, size.1 as usize);
 		debug!("Terminal size: {:?}", size);
 		debug!("Starting pos: {:?}", start_pos);
@@ -84,7 +88,7 @@ impl Tui {
 			start_pos.1 = min_line;
 		}
 
-		Tui {
+		Ok(Tui {
 			stdout: stdout,
 			start_pos: start_pos,
 			curs_pos: 0,
@@ -96,7 +100,7 @@ impl Tui {
 			prompt,
 			display_lines,
 			current_lines,
-		}
+		})
 	}
 
 	fn goto_start(&self) {
@@ -125,8 +129,9 @@ impl Tui {
 		print!("{}", cursor::Goto(self.curs_pos + 3, self.start_pos.1));
 	}
 
-	pub fn flush(&mut self) {
-		self.stdout.flush().unwrap();
+	pub fn flush(&mut self) -> Result<(), io::Error> {
+		self.stdout.flush()?;
+		Ok(())
 	}
 
 	pub fn move_up(&mut self) {
@@ -310,7 +315,7 @@ impl Tui {
 		}
 	}
 
-	pub fn render(&mut self, info_line: String, path_lines: Vec<String>) {
+	pub fn render(&mut self, info_line: String, path_lines: Vec<String>) -> Result<(), io::Error> {
 		if self.chars_changed && self.index() >= path_lines.len() {
 			self.adjust_offset(path_lines.len());
 			let x = cmp::max(1, path_lines.len()) - 1;
@@ -323,8 +328,10 @@ impl Tui {
 		print_info_line(info_line);
 		self.print_body(path_lines);
 		self.return_cursor();
-		self.flush();
+		self.flush()?;
 		self.chars_changed = false;
+
+		Ok(())
 	}
 
 	/// Return the total index position, defined as the current line number

@@ -1,4 +1,5 @@
-use crate::path::{PathBehaviour, RcPath, create_paths};
+use crate::path::{create_paths, PathBehaviour, RcPath};
+use std::io;
 use std::rc::Rc;
 
 const DIR_OPEN: &str = "  ";
@@ -17,9 +18,9 @@ pub struct Tree {
 }
 
 impl Tree {
-	pub fn from_stdout(stdout: Vec<u8>) -> Self {
-		let paths = create_paths(stdout);
-		Self::from_paths(paths)
+	pub fn from_stdout(stdout: Vec<u8>) -> Result<Self, io::Error> {
+		let paths = create_paths(stdout)?;
+		Ok(Self::from_paths(paths))
 	}
 
 	pub fn from_paths(paths: Vec<RcPath>) -> Self {
