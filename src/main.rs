@@ -5,6 +5,7 @@
 
 #[macro_use]
 mod args;
+#[macro_use]
 mod path;
 mod tree;
 mod tui;
