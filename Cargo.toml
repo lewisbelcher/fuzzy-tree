@@ -5,6 +5,11 @@ authors = ["Lewis Belcher <belcher_lewis@protonmail.com>"]
 edition = "2018"
 description = "A simple fuzzy finder written in Rust which displays results in an interactive tree format."
 license = "MIT"
+keywords = ["find", "interactive", "tree"]
+categories = ["command-line-utilities", "filesystem"]
+homepage = "https://gitlab.com/lewisbelcher/fuzzy-tree"
+respoitory = "https://gitlab.com/lewisbelcher/fuzzy-tree"
+readme = "README.md"
 
 [dependencies]
 clap = "2.33.0"
