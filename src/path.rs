@@ -161,7 +161,6 @@ pub fn create_paths(string: Vec<u8>) -> Result<Vec<RcPath>, io::Error> {
 		})?
 		.split('\n')
 		.filter(|x| !x.is_empty())
-		// .map(|x| Path::from(x, fs::metadata(&x)?.is_dir()))
 		.map(|x| Path::from(x, fs::metadata(&x).map_or_else(|_| false, |v| v.is_dir())))
 		.collect();
 
