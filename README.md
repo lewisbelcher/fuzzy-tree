@@ -1,10 +1,13 @@
 Fuzzy Tree
 ==========
 
+[![pipeline](https://gitlab.com/lewisbelcher/fuzzy-tree/badges/master/pipeline.svg)](https://gitlab.com/lewisbelcher/fuzzy-tree/pipelines)
+[![crate](https://img.shields.io/crates/v/fuzzy-tree.svg)](https://crates.io/crates/fuzzy-tree)
+
 A simple fuzzy finder written in Rust which displays results in an interactive
 tree format.
 
-![img](static/fztree.gif)
+![Fuzzy Tree gif](https://gitlab.com/lewisbelcher/fuzzy-tree/-/raw/master/static/fztree.gif)
 
 
 Install
