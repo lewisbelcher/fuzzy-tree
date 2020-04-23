@@ -1,6 +1,7 @@
 Fuzzy Tree
 ==========
 
+[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pipeline](https://gitlab.com/lewisbelcher/fuzzy-tree/badges/master/pipeline.svg)](https://gitlab.com/lewisbelcher/fuzzy-tree/pipelines)
 [![crate](https://img.shields.io/crates/v/fuzzy-tree.svg)](https://crates.io/crates/fuzzy-tree)
 
