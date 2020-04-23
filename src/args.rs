@@ -45,9 +45,19 @@ pub fn collect() -> Args {
 		.get_matches();
 
 	Args {
-		cmd: matches.value_of("cmd").unwrap_or("fd").to_string(),
+		cmd: matches.value_of("cmd").unwrap_or(default_cmd()).to_string(),
 		collapse: parse_usize(&matches, "collapse", 0).unwrap_or(10),
 		lines: parse_usize(&matches, "lines", 3).unwrap_or(20),
+	}
+}
+
+/// Get the default command to use. We naively assume that `fd` is the rust
+/// fd-find binary.
+fn default_cmd() -> &'static str {
+	if which::which("fd").is_ok() {
+		"fd"
+	} else {
+		"find"
 	}
 }
 
