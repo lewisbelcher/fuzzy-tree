@@ -167,11 +167,16 @@ pub fn create_paths(string: Vec<u8>) -> Result<Vec<RcPath>, io::Error> {
 
 	paths.sort();
 
-	// Add CWD as "."
 	for p in &mut paths {
-		p.borrow_mut().components.insert(0, ".".to_string());
+		if p.borrow().components[0] != "." {
+			p.borrow_mut().components.insert(0, ".".to_string());
+		}
 	}
-	paths.insert(0, Path::from(".", true));
+
+	if paths[0].borrow().joined != "." {
+		// Add CWD as "." if not present
+		paths.insert(0, Path::from(".", true));
+	}
 
 	Ok(paths)
 }
