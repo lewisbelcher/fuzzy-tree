@@ -1,6 +1,6 @@
 [package]
 name = "fuzzy-tree"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Lewis Belcher <belcher_lewis@protonmail.com>"]
 edition = "2018"
 description = "A simple fuzzy finder written in Rust which displays results in an interactive tree format."
