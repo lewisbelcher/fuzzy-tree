@@ -338,3 +338,15 @@ impl Tui {
 		chars_to_str(&self.chars)
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	// TODO: Find a good way to test a TUI.
+
+	#[test]
+	fn test_chars_to_string() {
+		assert_eq!(chars_to_str(&vec!['a', 'b', 'c']), "abc");
+	}
+}

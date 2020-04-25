@@ -4,7 +4,7 @@
 // distributed except according to those terms.
 
 use crate::utils;
-use clap::{crate_version, App, Arg, ArgMatches};
+use clap::{crate_version, App, Arg};
 
 #[derive(Debug)]
 pub struct Args {
@@ -13,6 +13,7 @@ pub struct Args {
 	pub lines: usize,
 }
 
+#[cfg_attr(tarpaulin, skip)]
 pub fn collect() -> Args {
 	let matches = App::new("Fuzzy Tree")
 		.version(crate_version!())
@@ -46,13 +47,14 @@ pub fn collect() -> Args {
 
 	Args {
 		cmd: matches.value_of("cmd").unwrap_or(default_cmd()).to_string(),
-		collapse: parse_usize(&matches, "collapse", 0).unwrap_or(10),
-		lines: parse_usize(&matches, "lines", 3).unwrap_or(20),
+		collapse: parse_usize(matches.value_of("collapse"), "collapse", 0).unwrap_or(10),
+		lines: parse_usize(matches.value_of("lines"), "lines", 3).unwrap_or(20),
 	}
 }
 
 /// Get the default command to use. We naively assume that `fd` is the rust
 /// fd-find binary.
+#[cfg_attr(tarpaulin, skip)]
 fn default_cmd() -> &'static str {
 	if which::which("fd").is_ok() {
 		"fd"
@@ -61,8 +63,8 @@ fn default_cmd() -> &'static str {
 	}
 }
 
-fn parse_usize(matches: &ArgMatches, arg: &str, min: usize) -> Option<usize> {
-	if let Some(value) = matches.value_of(arg) {
+fn parse_usize(given: Option<&str>, arg: &str, min: usize) -> Option<usize> {
+	if let Some(value) = given {
 		if let Ok(v) = value.parse() {
 			if v < min {
 				utils::exit(&format!("option '--{}' must be >={}", arg, min))
@@ -73,5 +75,20 @@ fn parse_usize(matches: &ArgMatches, arg: &str, min: usize) -> Option<usize> {
 		}
 	} else {
 		None
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn parsing_usize_with_no_value() {
+		assert_eq!(parse_usize(None, "lines", 3), None);
+	}
+
+	#[test]
+	fn parsing_usize_with_ok_value() {
+		assert_eq!(parse_usize(Some("5"), "lines", 3), Some(5));
 	}
 }
