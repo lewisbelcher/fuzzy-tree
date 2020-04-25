@@ -6,13 +6,14 @@ stages:
 
 test:
   stage: test
-  before_script: cargo install -f cargo-tarpaulin
+  before_script:
+    - cargo install -f cargo-tarpaulin
   script: cargo tarpaulin
 
 publish:
   stage: publish
-  script:
+  before_script:
     - cargo login $CARGO_TOKEN
-    - cargo publish
+  script: cargo publish
   only:
     - tags
