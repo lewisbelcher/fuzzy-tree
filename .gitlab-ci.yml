@@ -6,7 +6,8 @@ stages:
 
 test:
   stage: test
-  script: cargo test
+  before_script: cargo install -f cargo-tarpaulin
+  script: cargo tarpaulin
 
 publish:
   stage: publish
