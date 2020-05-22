@@ -12,12 +12,12 @@ respoitory = "https://gitlab.com/lewisbelcher/fuzzy-tree"
 readme = "README.md"
 
 [dependencies]
-clap = "2.33.0"
-env_logger = "0.7.1"
+clap = "2.33"
+env_logger = "0.7"
 lazy_static = "1.4"
 log = "0.4"
-termion = "1.5.5"
-which = "3.1.1"
+termion = "1.5"
+which = "3.1"
 
 [[bin]]
 name = "fztree"
