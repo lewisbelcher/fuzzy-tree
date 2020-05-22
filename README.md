@@ -17,7 +17,7 @@ Install
 1. [Get Rust](https://www.rust-lang.org/tools/install)
 2. Install [`fd`](https://crates.io/crates/fd-find) (optional but recommended, the default find command is `fd`)
 3. Clone this repo (optional)
-4. Run `cargo install <repo path>` (if you did step 3) or `cargo install fuzzy-tree`
+4. Run `cargo install --path <repo path>` (if you did step 3) or `cargo install fuzzy-tree`
 
 
 Contributing
