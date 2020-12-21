@@ -15,10 +15,24 @@ Install
 -------
 
 1. [Get Rust](https://www.rust-lang.org/tools/install)
-2. Install [`fd`](https://crates.io/crates/fd-find) (optional but recommended, the default find command is `fd`)
+2. Install [`fd`](https://crates.io/crates/fd-find) (optional but recommended,
+   the default find command is `fd`)
 3. Clone this repo (optional)
-4. Run `cargo install --path <repo path>` (if you did step 3) or `cargo install fuzzy-tree`
+4. Run `cargo install --path <repo path>` (if you did step 3) or `cargo install
+   fuzzy-tree`
 5. Use `fztree`!
+
+
+Usage
+=====
+
+Using a different command (`--cmd`): The output from the command given must be
+a new-line separated list of strings. While running fuzzy tree on a file list
+generated from elsewhere, the directory prefix and functionality currently
+relies on input items being detectable as directories *relative to the path
+fuzzy tree was executed from.* (This could be mitigated by utilising a trailing
+separator, `/` or `\`, to detect directories. Currently neither `find` nor `fd`
+make this easily available however).
 
 
 Contributing

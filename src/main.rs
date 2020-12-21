@@ -10,8 +10,10 @@ mod path;
 mod tree;
 mod tui;
 mod utils;
+
 #[macro_use]
 extern crate log;
+
 use log::Level;
 use std::io;
 use std::mem;
@@ -20,23 +22,37 @@ use termion::color;
 use termion::event::Key;
 
 fn main() -> Result<(), io::Error> {
-	env_logger::init();
+	// env_logger::init();
 
 	let cliargs = args::collect();
 	debug!("{:?}", cliargs);
 
-	let stdout = Command::new(&cliargs.cmd)
-		.output()
-		.unwrap_or_else(|_| utils::exit(&format!("Failed to execute command `{}`", &cliargs.cmd)))
-		.stdout;
+	let stdout = run_cmd(&cliargs.cmd).unwrap_or_else(|e| {
+		utils::exit(&format!(
+			"Failed to execute command `{}`: {}",
+			&cliargs.cmd,
+			e.to_string()
+		))
+	});
+	run_loop(stdout, cliargs.n_collapse, cliargs.n_lines)
+}
 
-	let mut tree = tree::Tree::from_stdout(stdout)?;
-	if cliargs.collapse > 0 {
-		tree.collapse_over(cliargs.collapse)
+fn run_cmd(cmd: &str) -> Result<Vec<u8>, io::Error> {
+	let (cmd, args) = {
+		let mut split: Vec<&str> = cmd.split(' ').collect();
+		(split.remove(0), split)
+	};
+	Ok(Command::new(cmd).args(&args).output()?.stdout)
+}
+
+fn run_loop(content: Vec<u8>, n_collapse: usize, n_lines: usize) -> Result<(), io::Error> {
+	let mut tree = tree::Tree::from_stdout(content)?;
+	if n_collapse > 0 {
+		tree.collapse_over(n_collapse)
 	}
 	let lines = tree.as_lines();
 	let prompt = format!("{}> {}", color::Fg(color::Blue), color::Fg(color::Reset));
-	let mut ui = tui::Tui::new(prompt, cliargs.lines, lines.len())?;
+	let mut ui = tui::Tui::new(prompt, n_lines, lines.len())?;
 
 	ui.render(tree.info_line(), lines)?;
 

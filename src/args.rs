@@ -9,8 +9,8 @@ use clap::{crate_version, App, Arg};
 #[derive(Debug)]
 pub struct Args {
 	pub cmd: String,
-	pub collapse: usize,
-	pub lines: usize,
+	pub n_collapse: usize,
+	pub n_lines: usize,
 }
 
 #[cfg_attr(tarpaulin, skip)]
@@ -28,17 +28,17 @@ pub fn collect() -> Args {
 				.takes_value(true),
 		)
 		.arg(
-			Arg::with_name("collapse")
+			Arg::with_name("n_collapse")
 				.short("n")
-				.long("collapse")
+				.long("n-collapse")
 				.value_name("N")
 				.help("Directories with more than N children will initially be collapsed")
 				.takes_value(true),
 		)
 		.arg(
-			Arg::with_name("lines")
+			Arg::with_name("n_lines")
 				.short("l")
-				.long("lines")
+				.long("n-lines")
 				.value_name("N")
 				.help("Max number of lines to use")
 				.takes_value(true),
@@ -47,8 +47,8 @@ pub fn collect() -> Args {
 
 	Args {
 		cmd: matches.value_of("cmd").unwrap_or(default_cmd()).to_string(),
-		collapse: parse_usize(matches.value_of("collapse"), "collapse", 0).unwrap_or(10),
-		lines: parse_usize(matches.value_of("lines"), "lines", 3).unwrap_or(20),
+		n_collapse: parse_usize(matches.value_of("n_collapse"), "n_collapse", 0).unwrap_or(10),
+		n_lines: parse_usize(matches.value_of("n_lines"), "n_lines", 3).unwrap_or(20),
 	}
 }
 
