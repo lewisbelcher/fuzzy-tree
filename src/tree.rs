@@ -478,12 +478,12 @@ mod test {
 		root.add_child(&paths[1]);
 		root.add_child(&paths[2]);
 		root.add_child(&paths[3]);
-		&paths[3].add_child(&paths[4]);
-		&paths[4].add_child(&paths[5]);
-		&paths[4].add_child(&paths[6]);
-		&paths[3].add_child(&paths[7]);
-		&paths[7].add_child(&paths[8]);
-		&paths[7].add_child(&paths[9]);
+		let _ = &paths[3].add_child(&paths[4]);
+		let _ = &paths[4].add_child(&paths[5]);
+		let _ = &paths[4].add_child(&paths[6]);
+		let _ = &paths[3].add_child(&paths[7]);
+		let _ = &paths[7].add_child(&paths[8]);
+		let _ = &paths[7].add_child(&paths[9]);
 		root.add_child(&paths[10]);
 		root
 	}
@@ -522,7 +522,7 @@ mod test {
 
 	#[test]
 	fn tree_string_correct() {
-		let mut paths = create_test_paths();
+		let paths = create_test_paths();
 		let tree = link_paths(&paths);
 		let lines = tree_string(&tree, paths.len());
 		let expected = vec![
